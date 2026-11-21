@@ -1,4 +1,5 @@
-import type { Timestamp } from 'firebase/firestore'
+/** Datas chegam do Supabase como texto ISO 8601. */
+export type Ts = string
 
 export interface UserProfile {
   uid: string
@@ -7,7 +8,6 @@ export interface UserProfile {
   phone: string
   color: string
   circleId: string | null
-  createdAt?: Timestamp
 }
 
 export interface Circle {
@@ -28,7 +28,7 @@ export interface MemberLocation {
   battery: number | null
   charging: boolean | null
   sharing: boolean
-  updatedAt: Timestamp | null
+  updatedAt: Ts | null
 }
 
 export interface Place {
@@ -38,7 +38,7 @@ export interface Place {
   lat: number
   lng: number
   radius: number
-  createdBy: string
+  createdBy: string | null
 }
 
 export type CircleEventType = 'arrive' | 'leave' | 'sos'
@@ -52,15 +52,15 @@ export interface CircleEvent {
   placeName: string | null
   lat: number | null
   lng: number | null
-  ts: Timestamp | null
+  ts: Ts | null
 }
 
 export interface HistoryPoint {
-  id: string
+  id: number
   uid: string
   lat: number
   lng: number
-  ts: Timestamp
+  ts: Ts
 }
 
 export interface Share {
@@ -70,8 +70,8 @@ export interface Share {
   color: string
   lat: number | null
   lng: number | null
-  updatedAt: Timestamp | null
-  expiresAt: Timestamp
+  updatedAt: Ts | null
+  expiresAt: Ts
 }
 
 export interface LatLng {

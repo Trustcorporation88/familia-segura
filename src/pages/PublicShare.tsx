@@ -7,7 +7,7 @@ import { memberIcon } from '../components/map/icons'
 import { Avatar } from '../components/Avatar'
 import { FullScreenSpinner } from '../components/ui'
 import { watchShare } from '../lib/api'
-import { firstName, hourMinute, timeAgo } from '../lib/format'
+import { firstName, hourMinute, ms, timeAgo } from '../lib/format'
 import type { Share } from '../lib/types'
 
 function Follow({ lat, lng }: { lat: number; lng: number }) {
@@ -31,7 +31,7 @@ export default function PublicShare() {
 
   if (share === undefined) return <FullScreenSpinner label="Abrindo localização…" />
 
-  const expired = !share || share.expiresAt.toMillis() <= Date.now()
+  const expired = !share || ms(share.expiresAt) <= Date.now()
 
   if (expired) {
     return (

@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Lock, Mail, Phone, User } from 'lucide-react'
+import { Lock, Mail, MailCheck, Phone, User } from 'lucide-react'
 import { AuthLayout } from '../components/AuthLayout'
 import { Button, ErrorText, Field } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
@@ -20,6 +20,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [consent, setConsent] = useState(false)
+  const [sentTo, setSentTo] = useState('')
 
   const set = (k: keyof typeof form) => (e: ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: k === 'phone' ? formatPhone(e.target.value) : e.target.value }))
@@ -32,11 +33,32 @@ export default function Signup() {
     if (!consent) return setError('Para usar o app, aceite compartilhar sua localização com seu círculo.')
     setLoading(true)
     try {
-      await signUp(form)
+      const needsConfirmation = await signUp(form)
+      if (needsConfirmation) {
+        setSentTo(form.email.trim())
+        setLoading(false)
+      }
     } catch (err) {
       setError(authErrorMessage(err))
       setLoading(false)
     }
+  }
+
+  if (sentTo) {
+    return (
+      <AuthLayout title="Confira seu e-mail" subtitle="Falta só confirmar que o e-mail é seu.">
+        <div className="rounded-2xl bg-brand-50 p-5 text-center ring-1 ring-brand-100">
+          <MailCheck className="mx-auto h-10 w-10 text-brand-600" />
+          <p className="mt-3 text-slate-700">
+            Enviamos um link para <strong>{sentTo}</strong>. Toque nele para ativar a conta e voltar ao app.
+          </p>
+          <p className="mt-2 text-sm text-slate-500">Não chegou? Olhe a caixa de spam ou promoções.</p>
+        </div>
+        <Link to="/login" className="mt-6 block text-center font-semibold text-brand-700 hover:underline">
+          Já confirmei, quero entrar
+        </Link>
+      </AuthLayout>
+    )
   }
 
   return (

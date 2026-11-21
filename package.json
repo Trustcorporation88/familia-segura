@@ -12,12 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.2",
     "@turf/circle": "^7.2.0",
     "@turf/distance": "^7.2.0",
     "@turf/helpers": "^7.2.0",
     "@turf/length": "^7.2.0",
     "date-fns": "^3.6.0",
-    "firebase": "^10.14.1",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "lucide-react": "^0.441.0",

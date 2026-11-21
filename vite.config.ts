@@ -46,7 +46,7 @@ export default defineConfig({
       output: {
         // Separa as bibliotecas grandes para o navegador manter em cache entre deploys.
         manualChunks: {
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+          supabase: ['@supabase/supabase-js'],
           map: ['leaflet', 'react-leaflet', 'react-leaflet-cluster', 'leaflet.markercluster'],
           react: ['react', 'react-dom', 'react-router-dom'],
         },

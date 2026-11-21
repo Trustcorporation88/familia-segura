@@ -1,7 +1,7 @@
 # Família Segura
 
 App web (PWA) de localização familiar no estilo Life360, em português.
-React + Vite + TypeScript, Tailwind, Firebase (Auth + Firestore) e Leaflet/OpenStreetMap.
+React + Vite + TypeScript, Tailwind, Supabase (Auth + Postgres + Realtime) e Leaflet/OpenStreetMap.
 
 ## O que tem
 
@@ -18,53 +18,50 @@ React + Vite + TypeScript, Tailwind, Firebase (Auth + Firestore) e Leaflet/OpenS
 ## Rodando local
 
 ```bash
-cp .env.example .env   # preencha com os dados do Firebase
 npm install
 npm run dev
 ```
 
-## Configuração do Firebase (uma vez)
+O app já aponta para o projeto Supabase **familia-segura** (São Paulo). Para usar outro projeto, copie `.env.example` para `.env`.
 
-1. **Authentication → Sign-in method**: ative **E-mail/senha**.
-2. **Authentication → Settings → Authorized domains**: adicione o domínio da Vercel (ex.: `familia-segura-omega.vercel.app`).
-3. **Firestore Database**: crie o banco (modo produção).
-4. Publique as **regras e índices** deste repositório:
+## Backend: Supabase
 
-```bash
-npm i -g firebase-tools
-firebase login
-firebase use --add            # escolha o seu projeto
-firebase deploy --only firestore:rules,firestore:indexes
-```
+Tudo que o app precisa está em `supabase/migrations/` e **já foi aplicado** no projeto `familia-segura`:
 
-Sem o índice, a tela de Histórico mostra um aviso. O índice leva alguns minutos para ficar pronto.
+- Tabelas: `profiles`, `circles`, `circle_members`, `locations`, `history`, `places`, `events`, `shares`
+- **RLS em todas as tabelas**: só membros do círculo veem a localização uns dos outros; cada um só grava a própria posição; anônimos não leem nada
+- Funções (RPC): `create_circle`, `join_circle`, `leave_circle` e `get_share` (link público sem permitir listar outros links)
+- Perfil criado automaticamente no cadastro (gatilho em `auth.users`)
+- Tempo real (Realtime) em localização, lugares, alertas e círculo
+- **Limpeza automática (pg_cron, todo dia 04:17 UTC)**: trajeto apagado após 30 dias, alertas após 90, links vencidos após 1 dia
+
+### Configuração do Auth (uma vez, no painel do Supabase)
+
+1. **Authentication → URL Configuration**
+   - Site URL: `https://familia-segura-omega.vercel.app` (ou `https://gpsprivado.online` quando o domínio estiver apontado)
+   - Redirect URLs: `https://familia-segura-omega.vercel.app/**` e `https://gpsprivado.online/**`
+2. **E-mails**: o SMTP padrão do Supabase envia poucos e-mails por hora. Para uso real, configure um SMTP próprio em **Authentication → Emails → SMTP Settings** (ex.: Resend, Brevo).
+   Alternativa para testes: desligar "Confirm email" em **Authentication → Sign In / Providers → Email**.
 
 ## Deploy na Vercel
 
-1. Importe este repositório na Vercel (Framework: **Vite**).
-2. Em **Settings → Environment Variables**, cadastre todas as variáveis `VITE_FIREBASE_*` do `.env.example`.
-3. Deploy. O `vercel.json` já faz as rotas do app (inclusive `/s/:token`) funcionarem ao recarregar a página.
+Conectado ao GitHub: cada push no `main` publica sozinho. Não precisa de variáveis de ambiente (a URL e a chave *publishable* do Supabase são públicas por natureza; a proteção é o RLS).
 
-## Estrutura do Firestore
+## Estrutura
 
 ```
-users/{uid}                         perfil (só o próprio usuário lê)
-inviteCodes/{CODIGO}                -> { circleId }
-circles/{id}                        { name, ownerId, members[], inviteCode }
-circles/{id}/locations/{uid}        última posição de cada membro
-circles/{id}/history/{auto}         pontos do trajeto { uid, lat, lng, ts }
-circles/{id}/places/{auto}          cercas { name, emoji, lat, lng, radius }
-circles/{id}/events/{auto}          alertas { type: arrive|leave|sos, ... }
-shares/{token}                      link temporário (público até expiresAt)
+src/lib/supabase.ts      cliente Supabase
+src/lib/api.ts           acesso a dados + tempo real
+src/lib/geo.ts           cercas virtuais (Turf.js) com histerese
+src/context/             login, círculo, GPS (TrackerContext), avisos
+src/pages/               telas
+supabase/migrations/     esquema, RLS e rotinas do banco
 ```
-
-As regras em `firestore.rules` garantem que só membros do círculo veem a localização uns dos outros, que cada um só escreve a própria posição, e que o link temporário deixa de ser lido assim que expira.
 
 ## Limitações conhecidas (e próximos passos)
 
 - **Localização em segundo plano**: navegadores só enviam GPS com o app aberto na tela. Para rastrear com o celular bloqueado é preciso empacotar como app nativo (ex.: [Capacitor](https://capacitorjs.com) + plugin de background geolocation).
-- **Push com o app fechado**: hoje os alertas aparecem com o app aberto. Para push real, adicionar Firebase Cloud Messaging + uma Cloud Function disparada em `circles/{id}/events`.
-- **Limpeza do histórico**: configure uma [política de TTL](https://firebase.google.com/docs/firestore/ttl) no campo `ts` da coleção `history` (ex.: 30 dias) para não acumular dados.
+- **Push com o app fechado**: hoje os alertas aparecem com o app aberto. Para push real: Web Push (VAPID) + uma Edge Function do Supabase disparada por um Database Webhook em `events`.
 
 ## Referências usadas
 

@@ -7,6 +7,7 @@ import {
   writeLocation,
 } from '../lib/api'
 import { evaluateGeofences, metersBetween, type PlaceStates } from '../lib/geo'
+import { ms } from '../lib/format'
 import type { LatLng, Place, Share, UserProfile } from '../lib/types'
 
 export type TrackerStatus = 'starting' | 'active' | 'paused' | 'denied' | 'unsupported' | 'error'
@@ -20,7 +21,7 @@ interface TrackerState {
 
 const TrackerContext = createContext<TrackerState | null>(null)
 
-// Intervalos de escrita (economiza bateria e cota do Firestore).
+// Intervalos de escrita (economiza bateria e banco).
 const LOCATION_MIN_METERS = 20
 const LOCATION_MAX_MS = 60_000
 const HISTORY_MIN_METERS = 75
@@ -101,7 +102,7 @@ export function TrackerProvider({
 
         // Links temporários ativos acompanham a mesma cadência
         for (const s of sharesRef.current) {
-          if (s.expiresAt.toMillis() > now) updateShareLocation(s.id, pos.lat, pos.lng).catch(console.error)
+          if (ms(s.expiresAt) > now) updateShareLocation(s.id, pos.lat, pos.lng).catch(console.error)
         }
       }
 

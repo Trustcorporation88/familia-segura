@@ -34,7 +34,7 @@ export default function HistoryPage() {
         console.error(e)
         if (!cancelled) {
           setPoints([])
-          setError('Não foi possível carregar o histórico. Se for a primeira vez, publique os índices do Firestore (veja o README).')
+          setError('Não foi possível carregar o histórico. Verifique sua conexão e tente de novo.')
         }
       })
       .finally(() => !cancelled && setLoading(false))

@@ -1,26 +1,6 @@
-import {
-  addDoc,
-  arrayUnion,
-  collection,
-  deleteDoc,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  setDoc,
-  Timestamp,
-  updateDoc,
-  where,
-  writeBatch,
-  arrayRemove,
-  type Unsubscribe,
-} from 'firebase/firestore'
-import { db } from './firebase'
-import { makeInviteCode, makeToken } from './format'
+import type { RealtimeChannel } from '@supabase/supabase-js'
+import { supabase } from './supabase'
+import { makeToken } from './format'
 import type {
   Circle,
   CircleEvent,
@@ -32,100 +12,168 @@ import type {
   UserProfile,
 } from './types'
 
+export type Unsubscribe = () => void
+
+function check<T>(res: { data: T; error: unknown }): T {
+  if (res.error) throw res.error
+  return res.data
+}
+
+/**
+ * Assina mudanças de uma tabela (filtrada) e recarrega os dados a cada evento.
+ * Recarregar é simples e à prova de falhas: as listas aqui são pequenas.
+ */
+function live<T>(
+  channelName: string,
+  tables: { table: string; filter?: string }[],
+  load: () => Promise<T>,
+  cb: (v: T) => void,
+): Unsubscribe {
+  let alive = true
+  let timer: number | undefined
+  const run = () => {
+    load()
+      .then((v) => alive && cb(v))
+      .catch((e) => console.error(`[${channelName}]`, e))
+  }
+  const schedule = () => {
+    window.clearTimeout(timer)
+    timer = window.setTimeout(run, 150)
+  }
+  let channel: RealtimeChannel = supabase.channel(`${channelName}:${Math.random().toString(36).slice(2)}`)
+  for (const t of tables) {
+    channel = channel.on('postgres_changes', { event: '*', schema: 'public', table: t.table, ...(t.filter ? { filter: t.filter } : {}) }, schedule)
+  }
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') run()
+  })
+  run()
+  // Ao voltar para o app, garante dados frescos (o celular pode ter dormido).
+  const onVisible = () => document.visibilityState === 'visible' && run()
+  document.addEventListener('visibilitychange', onVisible)
+  return () => {
+    alive = false
+    window.clearTimeout(timer)
+    document.removeEventListener('visibilitychange', onVisible)
+    supabase.removeChannel(channel)
+  }
+}
+
 /* ---------- Perfil ---------- */
 
-export async function saveProfile(profile: Omit<UserProfile, 'createdAt'>) {
-  await setDoc(doc(db, 'users', profile.uid), { ...profile, createdAt: serverTimestamp() }, { merge: true })
+type ProfileRow = { id: string; name: string; email: string; phone: string; color: string; circle_id: string | null }
+
+const toProfile = (r: ProfileRow): UserProfile => ({
+  uid: r.id,
+  name: r.name,
+  email: r.email,
+  phone: r.phone,
+  color: r.color,
+  circleId: r.circle_id,
+})
+
+export async function fetchProfile(uid: string): Promise<UserProfile | null> {
+  const data = check(await supabase.from('profiles').select('*').eq('id', uid).maybeSingle())
+  return data ? toProfile(data as ProfileRow) : null
 }
 
 export function watchProfile(uid: string, cb: (p: UserProfile | null) => void): Unsubscribe {
-  return onSnapshot(doc(db, 'users', uid), (snap) => {
-    cb(snap.exists() ? ({ uid, ...snap.data() } as UserProfile) : null)
-  })
+  return live('profile', [{ table: 'profiles', filter: `id=eq.${uid}` }], () => fetchProfile(uid), cb)
+}
+
+export async function updateProfile(uid: string, patch: { name?: string; phone?: string; color?: string }) {
+  check(await supabase.from('profiles').update(patch).eq('id', uid))
 }
 
 /* ---------- Círculo ---------- */
 
-export async function createCircle(profile: UserProfile, name: string): Promise<string> {
-  const circleRef = doc(collection(db, 'circles'))
-  const code = makeInviteCode()
-  const batch = writeBatch(db)
-  batch.set(circleRef, {
-    name: name.trim() || 'Minha família',
-    ownerId: profile.uid,
-    members: [profile.uid],
-    inviteCode: code,
-    createdAt: serverTimestamp(),
-  })
-  batch.set(doc(db, 'inviteCodes', code), { circleId: circleRef.id })
-  batch.update(doc(db, 'users', profile.uid), { circleId: circleRef.id })
-  await batch.commit()
-  await ensurePresence(circleRef.id, profile)
-  return circleRef.id
+export async function createCircle(_profile: UserProfile, name: string): Promise<string> {
+  return check(await supabase.rpc('create_circle', { p_name: name })) as string
 }
 
-export async function joinCircle(profile: UserProfile, rawCode: string): Promise<string> {
+export async function joinCircle(_profile: UserProfile, rawCode: string): Promise<string> {
   const code = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   if (code.length !== 6) throw new Error('O código tem 6 caracteres.')
-  const invite = await getDoc(doc(db, 'inviteCodes', code))
-  if (!invite.exists()) throw new Error('Código não encontrado. Confira com quem te convidou.')
-  const circleId = invite.data().circleId as string
-  const circleSnap = await getDoc(doc(db, 'circles', circleId))
-  if (!circleSnap.exists()) throw new Error('Esse círculo não existe mais.')
-  const members = (circleSnap.data().members as string[]) ?? []
-  if (!members.includes(profile.uid)) {
-    await updateDoc(doc(db, 'circles', circleId), { members: arrayUnion(profile.uid) })
-  }
-  await updateDoc(doc(db, 'users', profile.uid), { circleId })
-  await ensurePresence(circleId, profile)
-  return circleId
+  return check(await supabase.rpc('join_circle', { p_code: code })) as string
 }
 
-export async function leaveCircle(profile: UserProfile, circle: Circle) {
-  await deleteDoc(doc(db, 'circles', circle.id, 'locations', profile.uid)).catch(() => undefined)
-  if (circle.ownerId !== profile.uid) {
-    await updateDoc(doc(db, 'circles', circle.id), { members: arrayRemove(profile.uid) })
-  }
-  await updateDoc(doc(db, 'users', profile.uid), { circleId: null })
+export async function leaveCircle(_profile: UserProfile, circle: Circle) {
+  check(await supabase.rpc('leave_circle', { p_circle: circle.id }))
 }
 
 export async function renameCircle(circleId: string, name: string) {
-  await updateDoc(doc(db, 'circles', circleId), { name: name.trim().slice(0, 40) })
+  check(await supabase.from('circles').update({ name: name.trim().slice(0, 40) }).eq('id', circleId))
+}
+
+async function fetchCircle(circleId: string): Promise<Circle | null> {
+  const [c, m] = await Promise.all([
+    supabase.from('circles').select('id,name,owner_id,invite_code').eq('id', circleId).maybeSingle(),
+    supabase.from('circle_members').select('user_id').eq('circle_id', circleId),
+  ])
+  const circle = check(c) as { id: string; name: string; owner_id: string; invite_code: string } | null
+  const members = (check(m) as { user_id: string }[]) ?? []
+  if (!circle) return null
+  return {
+    id: circle.id,
+    name: circle.name,
+    ownerId: circle.owner_id,
+    inviteCode: circle.invite_code,
+    members: members.map((x) => x.user_id),
+  }
 }
 
 export function watchCircle(circleId: string, cb: (c: Circle | null) => void, onError?: (e: Error) => void): Unsubscribe {
-  return onSnapshot(
-    doc(db, 'circles', circleId),
-    (snap) => cb(snap.exists() ? ({ id: snap.id, ...snap.data() } as Circle) : null),
-    (e) => onError?.(e),
+  return live(
+    'circle',
+    [
+      { table: 'circles', filter: `id=eq.${circleId}` },
+      { table: 'circle_members', filter: `circle_id=eq.${circleId}` },
+    ],
+    () =>
+      fetchCircle(circleId).catch((e) => {
+        onError?.(e)
+        return null
+      }),
+    cb,
   )
-}
-
-/** Garante que o membro aparece na lista mesmo antes do primeiro GPS. */
-async function ensurePresence(circleId: string, profile: UserProfile) {
-  const ref = doc(db, 'circles', circleId, 'locations', profile.uid)
-  const snap = await getDoc(ref)
-  if (snap.exists()) return
-  await setDoc(ref, {
-    uid: profile.uid,
-    name: profile.name,
-    color: profile.color,
-    lat: null,
-    lng: null,
-    accuracy: null,
-    battery: null,
-    charging: null,
-    sharing: true,
-    updatedAt: null,
-  })
 }
 
 /* ---------- Localização ---------- */
 
+type LocationRow = {
+  user_id: string
+  name: string
+  color: string
+  lat: number | null
+  lng: number | null
+  accuracy: number | null
+  battery: number | null
+  charging: boolean | null
+  sharing: boolean
+  updated_at: string | null
+}
+
 export function watchLocations(circleId: string, cb: (list: MemberLocation[]) => void): Unsubscribe {
-  return onSnapshot(collection(db, 'circles', circleId, 'locations'), (snap) => {
-    cb(snap.docs.map((d) => ({ uid: d.id, ...d.data() }) as MemberLocation))
-  })
+  return live(
+    'locations',
+    [{ table: 'locations', filter: `circle_id=eq.${circleId}` }],
+    async () => {
+      const rows = check(await supabase.from('locations').select('*').eq('circle_id', circleId)) as LocationRow[]
+      return rows.map((r) => ({
+        uid: r.user_id,
+        name: r.name,
+        color: r.color,
+        lat: r.lat,
+        lng: r.lng,
+        accuracy: r.accuracy,
+        battery: r.battery,
+        charging: r.charging,
+        sharing: r.sharing,
+        updatedAt: r.updated_at,
+      }))
+    },
+    cb,
+  )
 }
 
 export async function writeLocation(
@@ -133,65 +181,118 @@ export async function writeLocation(
   profile: UserProfile,
   data: { lat: number; lng: number; accuracy: number; battery: number | null; charging: boolean | null },
 ) {
-  await setDoc(
-    doc(db, 'circles', circleId, 'locations', profile.uid),
-    {
-      uid: profile.uid,
-      name: profile.name,
-      color: profile.color,
-      ...data,
-      sharing: true,
-      updatedAt: serverTimestamp(),
-    },
-    { merge: true },
+  check(
+    await supabase.from('locations').upsert(
+      {
+        circle_id: circleId,
+        user_id: profile.uid,
+        name: profile.name,
+        color: profile.color,
+        ...data,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'circle_id,user_id' },
+    ),
   )
 }
 
 export async function setSharing(circleId: string, uid: string, sharing: boolean) {
-  await setDoc(doc(db, 'circles', circleId, 'locations', uid), { sharing }, { merge: true })
+  check(await supabase.from('locations').update({ sharing }).eq('circle_id', circleId).eq('user_id', uid))
 }
 
 export async function addHistoryPoint(circleId: string, uid: string, lat: number, lng: number) {
-  await addDoc(collection(db, 'circles', circleId, 'history'), { uid, lat, lng, ts: serverTimestamp() })
+  check(await supabase.from('history').insert({ circle_id: circleId, user_id: uid, lat, lng }))
 }
 
 export async function loadHistory(circleId: string, uid: string, start: Date, end: Date): Promise<HistoryPoint[]> {
-  const q = query(
-    collection(db, 'circles', circleId, 'history'),
-    where('uid', '==', uid),
-    where('ts', '>=', Timestamp.fromDate(start)),
-    where('ts', '<', Timestamp.fromDate(end)),
-    orderBy('ts', 'asc'),
-    limit(2000),
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as HistoryPoint)
+  const rows = check(
+    await supabase
+      .from('history')
+      .select('id,user_id,lat,lng,ts')
+      .eq('circle_id', circleId)
+      .eq('user_id', uid)
+      .gte('ts', start.toISOString())
+      .lt('ts', end.toISOString())
+      .order('ts', { ascending: true })
+      .limit(2000),
+  ) as { id: number; user_id: string; lat: number; lng: number; ts: string }[]
+  return rows.map((r) => ({ id: r.id, uid: r.user_id, lat: r.lat, lng: r.lng, ts: r.ts }))
 }
 
 /* ---------- Lugares (cercas) ---------- */
 
 export function watchPlaces(circleId: string, cb: (list: Place[]) => void): Unsubscribe {
-  return onSnapshot(collection(db, 'circles', circleId, 'places'), (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Place).sort((a, b) => a.name.localeCompare(b.name)))
-  })
+  return live(
+    'places',
+    [{ table: 'places', filter: `circle_id=eq.${circleId}` }],
+    async () => {
+      const rows = check(await supabase.from('places').select('*').eq('circle_id', circleId).order('name')) as {
+        id: string
+        name: string
+        emoji: string
+        lat: number
+        lng: number
+        radius: number
+        created_by: string | null
+      }[]
+      return rows.map((r) => ({ id: r.id, name: r.name, emoji: r.emoji, lat: r.lat, lng: r.lng, radius: r.radius, createdBy: r.created_by }))
+    },
+    cb,
+  )
 }
 
 export async function savePlace(circleId: string, place: Omit<Place, 'id'>, id?: string) {
-  if (id) await setDoc(doc(db, 'circles', circleId, 'places', id), place)
-  else await addDoc(collection(db, 'circles', circleId, 'places'), place)
+  const row = {
+    circle_id: circleId,
+    name: place.name,
+    emoji: place.emoji,
+    lat: place.lat,
+    lng: place.lng,
+    radius: Math.round(place.radius),
+    created_by: place.createdBy,
+  }
+  if (id) check(await supabase.from('places').update(row).eq('id', id))
+  else check(await supabase.from('places').insert(row))
 }
 
-export async function deletePlace(circleId: string, id: string) {
-  await deleteDoc(doc(db, 'circles', circleId, 'places', id))
+export async function deletePlace(_circleId: string, id: string) {
+  check(await supabase.from('places').delete().eq('id', id))
 }
 
 /* ---------- Alertas ---------- */
 
 export function watchEvents(circleId: string, cb: (list: CircleEvent[]) => void): Unsubscribe {
-  const q = query(collection(db, 'circles', circleId, 'events'), orderBy('ts', 'desc'), limit(50))
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }) as CircleEvent))
-  })
+  return live(
+    'events',
+    [{ table: 'events', filter: `circle_id=eq.${circleId}` }],
+    async () => {
+      const rows = check(
+        await supabase.from('events').select('*').eq('circle_id', circleId).order('ts', { ascending: false }).limit(50),
+      ) as {
+        id: string
+        type: CircleEventType
+        user_id: string
+        name: string
+        place_id: string | null
+        place_name: string | null
+        lat: number | null
+        lng: number | null
+        ts: string
+      }[]
+      return rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        uid: r.user_id,
+        name: r.name,
+        placeId: r.place_id,
+        placeName: r.place_name,
+        lat: r.lat,
+        lng: r.lng,
+        ts: r.ts,
+      }))
+    },
+    cb,
+  )
 }
 
 export async function pushEvent(
@@ -200,63 +301,101 @@ export async function pushEvent(
   type: CircleEventType,
   extra: { placeId?: string; placeName?: string; lat?: number | null; lng?: number | null } = {},
 ) {
-  await addDoc(collection(db, 'circles', circleId, 'events'), {
-    type,
-    uid: profile.uid,
-    name: profile.name,
-    placeId: extra.placeId ?? null,
-    placeName: extra.placeName ?? null,
-    lat: extra.lat ?? null,
-    lng: extra.lng ?? null,
-    ts: serverTimestamp(),
-  })
+  check(
+    await supabase.from('events').insert({
+      circle_id: circleId,
+      type,
+      user_id: profile.uid,
+      name: profile.name,
+      place_id: extra.placeId ?? null,
+      place_name: extra.placeName ?? null,
+      lat: extra.lat ?? null,
+      lng: extra.lng ?? null,
+    }),
+  )
 }
 
 /* ---------- Link temporário ---------- */
 
-export async function createShare(
-  profile: UserProfile,
-  minutes: number,
-  pos: { lat: number; lng: number } | null,
-): Promise<string> {
+type ShareRow = {
+  id: string
+  user_id?: string
+  name: string
+  color: string
+  lat: number | null
+  lng: number | null
+  updated_at: string | null
+  expires_at: string
+}
+
+const toShare = (r: ShareRow): Share => ({
+  id: r.id,
+  uid: r.user_id ?? '',
+  name: r.name,
+  color: r.color,
+  lat: r.lat,
+  lng: r.lng,
+  updatedAt: r.updated_at,
+  expiresAt: r.expires_at,
+})
+
+export async function createShare(profile: UserProfile, minutes: number, pos: { lat: number; lng: number } | null): Promise<string> {
   const token = makeToken()
-  await setDoc(doc(db, 'shares', token), {
-    uid: profile.uid,
-    name: profile.name,
-    color: profile.color,
-    lat: pos?.lat ?? null,
-    lng: pos?.lng ?? null,
-    updatedAt: pos ? serverTimestamp() : null,
-    expiresAt: Timestamp.fromMillis(Date.now() + minutes * 60_000),
-  })
+  check(
+    await supabase.from('shares').insert({
+      id: token,
+      user_id: profile.uid,
+      name: profile.name,
+      color: profile.color,
+      lat: pos?.lat ?? null,
+      lng: pos?.lng ?? null,
+      updated_at: pos ? new Date().toISOString() : null,
+      expires_at: new Date(Date.now() + minutes * 60_000).toISOString(),
+    }),
+  )
   return token
 }
 
 export function watchMyShares(uid: string, cb: (list: Share[]) => void): Unsubscribe {
-  const q = query(collection(db, 'shares'), where('uid', '==', uid))
-  return onSnapshot(q, (snap) => {
-    cb(
-      snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as Share)
-        .sort((a, b) => b.expiresAt.toMillis() - a.expiresAt.toMillis()),
-    )
-  })
+  return live(
+    'shares',
+    [{ table: 'shares', filter: `user_id=eq.${uid}` }],
+    async () => {
+      const rows = check(await supabase.from('shares').select('*').eq('user_id', uid).order('expires_at', { ascending: false })) as ShareRow[]
+      return rows.map(toShare)
+    },
+    cb,
+  )
 }
 
 export async function updateShareLocation(token: string, lat: number, lng: number) {
-  await updateDoc(doc(db, 'shares', token), { lat, lng, updatedAt: serverTimestamp() })
+  check(await supabase.from('shares').update({ lat, lng, updated_at: new Date().toISOString() }).eq('id', token))
 }
 
 export async function deleteShare(token: string) {
-  await deleteDoc(doc(db, 'shares', token))
+  check(await supabase.from('shares').delete().eq('id', token))
 }
 
+/** Página pública: sem login, lê pelo RPC (não dá para listar links). Atualiza a cada 15 s. */
 export function watchShare(token: string, cb: (s: Share | null) => void): Unsubscribe {
-  return onSnapshot(
-    doc(db, 'shares', token),
-    (snap) => cb(snap.exists() ? ({ id: snap.id, ...snap.data() } as Share) : null),
-    () => cb(null),
-  )
+  let alive = true
+  const load = async () => {
+    const { data, error } = await supabase.rpc('get_share', { p_token: token })
+    if (!alive) return
+    if (error) {
+      console.error(error)
+      cb(null)
+      return
+    }
+    const row = (data as ShareRow[] | null)?.[0]
+    cb(row ? toShare(row) : null)
+  }
+  void load()
+  const t = window.setInterval(load, 15_000)
+  return () => {
+    alive = false
+    window.clearInterval(t)
+  }
 }
 
 export function shareUrl(token: string) {

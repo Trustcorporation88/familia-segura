@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTracker } from '../context/TrackerContext'
 import { useToast } from '../context/ToastContext'
 import { createShare, deleteShare, shareUrl } from '../lib/api'
-import { hourMinute } from '../lib/format'
+import { hourMinute, ms } from '../lib/format'
 
 const DURATIONS = [
   { label: '15 min', minutes: 15 },
@@ -37,8 +37,8 @@ export default function SharePage() {
   }, [])
 
   const now = Date.now()
-  const active = shares.filter((s) => s.expiresAt.toMillis() > now)
-  const expired = shares.filter((s) => s.expiresAt.toMillis() <= now)
+  const active = shares.filter((s) => ms(s.expiresAt) > now)
+  const expired = shares.filter((s) => ms(s.expiresAt) <= now)
 
   // Limpa links vencidos automaticamente.
   useEffect(() => {
@@ -122,7 +122,7 @@ export default function SharePage() {
                   <Timer className="h-5 w-5 shrink-0 text-emerald-600" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-900">Expira às {hourMinute(s.expiresAt)}</p>
-                    <p className="text-xs text-slate-500">faltam {remaining(s.expiresAt.toMillis() - now)}</p>
+                    <p className="text-xs text-slate-500">faltam {remaining(ms(s.expiresAt) - now)}</p>
                   </div>
                   <button onClick={() => copy(s.id)} className="rounded-xl p-2.5 text-slate-500 hover:bg-slate-100" aria-label="Copiar link">
                     {copied === s.id ? <Check className="h-5 w-5 text-emerald-600" /> : <Copy className="h-5 w-5" />}

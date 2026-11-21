@@ -6,11 +6,12 @@ import { ToastProvider } from './context/ToastContext'
 import { TrackerProvider } from './context/TrackerContext'
 import { AppShell } from './components/AppShell'
 import { FullScreenSpinner, Spinner } from './components/ui'
-import { firebaseConfigured } from './lib/firebase'
+import { backendConfigured } from './lib/supabase'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Onboarding from './pages/Onboarding'
 import CompleteProfile from './pages/CompleteProfile'
+import NewPassword from './pages/NewPassword'
 import MapPage from './pages/MapPage'
 import type { UserProfile } from './lib/types'
 
@@ -25,9 +26,9 @@ function ConfigMissing() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-slate-50 p-6">
       <div className="max-w-md rounded-2xl bg-white p-6 shadow ring-1 ring-slate-200">
-        <h1 className="text-xl font-bold">Configuração do Firebase ausente</h1>
+        <h1 className="text-xl font-bold">Configuração do servidor ausente</h1>
         <p className="mt-2 text-slate-600">
-          Defina as variáveis <code className="rounded bg-slate-100 px-1">VITE_FIREBASE_*</code> no arquivo <code className="rounded bg-slate-100 px-1">.env</code> (local) ou em
+          Defina as variáveis <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_URL</code> e <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_KEY</code> no arquivo <code className="rounded bg-slate-100 px-1">.env</code> (local) ou em
           Vercel → Settings → Environment Variables, e faça o deploy de novo.
         </p>
       </div>
@@ -68,8 +69,9 @@ function CircleGate({ profile }: { profile: UserProfile }) {
 }
 
 function Root() {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, recovery } = useAuth()
   if (loading) return <FullScreenSpinner />
+  if (recovery) return <NewPassword />
 
   if (!user) {
     return (
@@ -87,7 +89,7 @@ function Root() {
 }
 
 export default function App() {
-  if (!firebaseConfigured) return <ConfigMissing />
+  if (!backendConfigured) return <ConfigMissing />
   return (
     <BrowserRouter>
       <ToastProvider>
