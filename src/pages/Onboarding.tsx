@@ -4,7 +4,7 @@ import { AuthLayout } from '../components/AuthLayout'
 import { Button, ErrorText, Field } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { createCircle, joinCircle } from '../lib/api'
-import { firstName } from '../lib/format'
+import { dataErrorMessage, firstName } from '../lib/format'
 
 export default function Onboarding() {
   const { profile, logout } = useAuth()
@@ -25,7 +25,8 @@ export default function Onboarding() {
       if (mode === 'create') await createCircle(profile, name || `Família ${profile.name.split(' ').slice(-1)[0]}`)
       else await joinCircle(profile, code)
     } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : 'Algo deu errado. Tente novamente.')
+      console.error(err)
+      setError(dataErrorMessage(err))
       setLoading(false)
     }
   }

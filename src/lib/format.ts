@@ -85,3 +85,12 @@ export function authErrorMessage(err: unknown): string {
   }
   return map[code] ?? 'Algo deu errado. Tente novamente.'
 }
+
+/** Mensagem amigável para erros do Firestore (nunca mostra o texto técnico em inglês). */
+export function dataErrorMessage(err: unknown): string {
+  const code = (err as { code?: string })?.code ?? ''
+  if (code === 'permission-denied') return 'Sem permissão para salvar. Tente de novo em instantes; se continuar, avise quem administra o app.'
+  if (code === 'unavailable' || code === 'deadline-exceeded') return 'Sem conexão com o servidor. Verifique sua internet.'
+  if (code) return 'Algo deu errado. Tente novamente.'
+  return err instanceof Error && err.message ? err.message : 'Algo deu errado. Tente novamente.'
+}
