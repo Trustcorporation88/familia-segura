@@ -9,7 +9,7 @@ import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { useToast } from '../context/ToastContext'
 import { leaveCircle, renameCircle, setSharing } from '../lib/api'
-import { firstName } from '../lib/format'
+import { dataErrorMessage, firstName } from '../lib/format'
 
 function Row({ icon, title, subtitle, to, onClick, right }: { icon: ReactNode; title: string; subtitle?: string; to?: string; onClick?: () => void; right?: ReactNode }) {
   const inner = (
@@ -30,7 +30,7 @@ function Row({ icon, title, subtitle, to, onClick, right }: { icon: ReactNode; t
 export default function SettingsPage() {
   const { profile, logout } = useAuth()
   const { circle, members, me } = useCircle()
-  const { status } = useTracker()
+  const { status, syncStatus } = useTracker()
   const toast = useToast()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [notif, setNotif] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'denied')
@@ -40,7 +40,12 @@ export default function SettingsPage() {
 
   async function toggleSharing() {
     if (!circle || !profile) return
-    await setSharing(circle.id, profile.uid, !sharing)
+    try {
+      await setSharing(circle.id, profile.uid, !sharing)
+    } catch (e) {
+      toast.show({ kind: 'danger', title: 'Não foi possível alterar o compartilhamento', body: dataErrorMessage(e) })
+      return
+    }
     toast.show({ kind: 'info', title: sharing ? 'Compartilhamento pausado' : 'Compartilhamento ligado' })
   }
 
@@ -83,11 +88,12 @@ export default function SettingsPage() {
             <span className="min-w-0 flex-1">
               <span className="block font-semibold text-slate-900">Compartilhar minha localização</span>
               <span className="block text-sm text-slate-500">
-                {!sharing ? 'Pausado' : status === 'active' ? 'Ativo neste aparelho' : status === 'denied' ? 'Bloqueado no navegador' : 'Aguardando GPS'}
+                {!sharing ? 'Pausado' : syncStatus === 'error' ? 'Falha de envio. Tentando novamente' : syncStatus === 'syncing' ? 'Enviando posição…' : status === 'active' ? 'GPS ativo neste aparelho' : status === 'denied' ? 'Bloqueado no navegador' : 'Aguardando GPS'}
               </span>
             </span>
             <button
               role="switch"
+              aria-label="Compartilhar minha localização"
               aria-checked={sharing}
               onClick={toggleSharing}
               className={`relative h-7 w-12 shrink-0 rounded-full transition ${sharing ? 'bg-emerald-500' : 'bg-slate-300'}`}
@@ -96,6 +102,8 @@ export default function SettingsPage() {
             </button>
           </div>
         </Card>
+
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Pausar interrompe novas atualizações. A última posição e o histórico continuam visíveis ao círculo. Links temporários existentes mantêm a última posição até expirarem ou serem desativados. O GPS só atualiza com o app aberto.</p>
 
         <Card className="!p-0 overflow-hidden divide-y divide-slate-100">
           <Row icon={<Link2 className="h-5 w-5" />} title="Link temporário" subtitle="Mostre onde você está por um tempo" to="/compartilhar" />

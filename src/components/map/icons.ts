@@ -12,7 +12,7 @@ export function memberIcon(name: string, color: string, opts: { stale?: boolean;
     .join(' ')
   return L.divIcon({
     className: 'fs-pin-wrap',
-    html: `<div class="${cls}" style="--pin:${color}"><span>${escapeHtml(initials(name))}</span></div>`,
+    html: `<div class="${cls}" style="--pin:${/^#[0-9a-fA-F]{6}$/.test(color) ? color : '#7c3aed'}"><span>${escapeHtml(initials(name))}</span></div>`,
     iconSize: [44, 52],
     iconAnchor: [22, 50],
     popupAnchor: [0, -46],

@@ -47,7 +47,7 @@ export default function MapPage() {
   const { circle, members, places, events, checkins, myCheckin } = useCircle()
   const now = useNow()
   const [checkinOpen, setCheckinOpen] = useState(false)
-  const { status, position, retry } = useTracker()
+  const { status, syncStatus, position, retry } = useTracker()
   const [map, setMap] = useState<LeafletMap | null>(null)
   const [sheetOpen, setSheetOpen] = useState(true)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -95,7 +95,7 @@ export default function MapPage() {
             <Marker
               key={m.uid}
               position={[m.lat!, m.lng!]}
-              icon={memberIcon(m.name, m.color, { stale: isStale(m.updatedAt), me: m.uid === profile?.uid, sos: recentSos?.uid === m.uid || checkins.some((c) => c.uid === m.uid && countdown(c, now).late) })}
+              icon={memberIcon(m.name, m.color, { stale: !m.sharing || isStale(m.updatedAt), me: m.uid === profile?.uid, sos: recentSos?.uid === m.uid || checkins.some((c) => c.uid === m.uid && countdown(c, now).late) })}
               zIndexOffset={m.uid === profile?.uid ? 500 : 0}
             >
               <Popup>
@@ -153,6 +153,12 @@ export default function MapPage() {
         </div>
       )}
 
+      {syncStatus === 'error' && (
+        <div role="alert" className="absolute inset-x-3 top-32 z-[900] mx-auto max-w-md rounded-xl bg-red-50 p-3 text-sm text-red-900 shadow">
+          O GPS está disponível, mas houve falha ao enviar dados ao servidor. Tentando novamente. Sua família pode ver uma posição antiga.
+        </div>
+      )}
+
       {/* Botão centralizar */}
       <button
         onClick={fitAll}
@@ -187,7 +193,7 @@ export default function MapPage() {
           <ul className="max-h-[min(38vh,280px)] md:max-h-[calc(100dvh-14rem)] divide-y divide-slate-100 overflow-y-auto px-2 pb-3">
             {members.map((m) => {
               const isMe = m.uid === profile?.uid
-              const place = placeOf(m, places)
+              const place = !isStale(m.updatedAt) && m.sharing ? placeOf(m, places) : null
               const dist =
                 !isMe && position && m.lat != null && m.lng != null ? formatDistance(metersBetween(position, { lat: m.lat, lng: m.lng })) : null
               const stale = isStale(m.updatedAt)

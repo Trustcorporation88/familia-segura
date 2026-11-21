@@ -1,3 +1,4 @@
+import { DialogFocus } from './DialogFocus'
 import { useState } from 'react'
 import { Phone, Siren, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -21,7 +22,7 @@ export function SosDialog({ open, onClose }: { open: boolean; onClose: () => voi
     setSending(true)
     try {
       await pushEvent(circle.id, profile, 'sos', { lat: position?.lat ?? null, lng: position?.lng ?? null })
-      toast.show({ kind: 'success', title: 'SOS enviado', body: 'Sua família foi avisada com a sua localização.' })
+      toast.show({ kind: 'success', title: 'SOS registrado', body: 'O pedido está disponível no círculo. Não há confirmação de leitura. Em emergência, ligue 190 ou 192.' })
       onClose()
     } catch {
       toast.show({ kind: 'danger', title: 'Não foi possível enviar o SOS', body: 'Verifique sua conexão. Em emergência, ligue 190.' })
@@ -31,6 +32,7 @@ export function SosDialog({ open, onClose }: { open: boolean; onClose: () => voi
   }
 
   return (
+    <DialogFocus onClose={onClose}>
     <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="sos-title">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between">
@@ -43,9 +45,10 @@ export function SosDialog({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
         <h2 id="sos-title" className="mt-4 text-xl font-bold text-slate-900">Pedir ajuda?</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Todo mundo do círculo <strong>{circle.name}</strong> recebe um alerta com a sua localização
+          O pedido ficará disponível no círculo <strong>{circle.name}</strong> com a sua localização
           {position ? '' : ' (ainda sem GPS, vamos enviar sem posição)'}.
         </p>
+        <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Não há garantia de aviso com o app fechado, nem confirmação de leitura. O SOS não aciona serviços de emergência.</p>
         <div className="mt-6 space-y-3">
           <Button variant="danger" full loading={sending} onClick={send}>
             Enviar SOS para a família
@@ -64,5 +67,6 @@ export function SosDialog({ open, onClose }: { open: boolean; onClose: () => voi
         </div>
       </div>
     </div>
+    </DialogFocus>
   )
 }

@@ -7,7 +7,7 @@ import { memberIcon } from '../components/map/icons'
 import { Avatar } from '../components/Avatar'
 import { FullScreenSpinner } from '../components/ui'
 import { watchShare } from '../lib/api'
-import { firstName, hourMinute, ms, timeAgo } from '../lib/format'
+import { firstName, hourMinute, isStale, ms, timeAgo } from '../lib/format'
 import type { Share } from '../lib/types'
 
 function Follow({ lat, lng }: { lat: number; lng: number }) {
@@ -56,7 +56,7 @@ export default function PublicShare() {
         {hasPos && (
           <>
             <Follow lat={share.lat!} lng={share.lng!} />
-            <Marker position={[share.lat!, share.lng!]} icon={memberIcon(share.name, share.color)} />
+            <Marker position={[share.lat!, share.lng!]} icon={memberIcon(share.name, share.color, { stale: isStale(share.updatedAt) })} />
           </>
         )}
       </BaseMap>
@@ -67,7 +67,7 @@ export default function PublicShare() {
         <div className="mx-auto flex max-w-md items-center gap-3 rounded-3xl bg-white p-4 shadow-sheet ring-1 ring-slate-200">
           <Avatar name={share.name} color={share.color} size={48} />
           <div className="min-w-0 flex-1">
-            <p className="font-bold leading-snug text-slate-900">{firstName(share.name)} está compartilhando a localização</p>
+            <p className="font-bold leading-snug text-slate-900">Última localização compartilhada por {firstName(share.name)}</p>
             <p className="text-sm text-slate-500">
               {hasPos ? `Atualizado ${timeAgo(share.updatedAt)}` : 'Aguardando o GPS…'} · até {hourMinute(share.expiresAt)}
             </p>
