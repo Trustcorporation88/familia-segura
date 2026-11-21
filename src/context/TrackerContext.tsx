@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   addHistoryPoint,
+  finishCheckin,
   pushEvent,
   updateShareLocation,
   watchMyShares,
   writeLocation,
 } from '../lib/api'
-import { evaluateGeofences, metersBetween, type PlaceStates } from '../lib/geo'
+import { evaluateGeofences, isInsidePlace, metersBetween, type PlaceStates } from '../lib/geo'
 import { ms } from '../lib/format'
-import type { LatLng, Place, Share, UserProfile } from '../lib/types'
+import type { Checkin, LatLng, Place, Share, UserProfile } from '../lib/types'
 
 export type TrackerStatus = 'starting' | 'active' | 'paused' | 'denied' | 'unsupported' | 'error'
 
@@ -60,12 +61,14 @@ export function TrackerProvider({
   circleId,
   places,
   sharing,
+  checkin,
   children,
 }: {
   profile: UserProfile
   circleId: string
   places: Place[]
   sharing: boolean
+  checkin: Checkin | null
   children: ReactNode
 }) {
   const [status, setStatus] = useState<TrackerStatus>('starting')
@@ -78,6 +81,9 @@ export function TrackerProvider({
   const placesRef = useRef(places)
   const sharesRef = useRef(shares)
   const profileRef = useRef(profile)
+  const checkinRef = useRef(checkin)
+  const finishingRef = useRef<string | null>(null)
+  checkinRef.current = checkin
   placesRef.current = places
   sharesRef.current = shares
   profileRef.current = profile
@@ -113,7 +119,20 @@ export function TrackerProvider({
         addHistoryPoint(circleId, me.uid, pos.lat, pos.lng).catch(console.error)
       }
 
-      // 3) Cercas virtuais
+      // 3) Chegada combinada: chegou no destino -> avisa "chegou bem" sozinho
+      const ck = checkinRef.current
+      if (ck && finishingRef.current !== ck.id && accuracy <= 200) {
+        const dest = placesRef.current.find((p) => p.id === ck.placeId)
+        if (dest && isInsidePlace(pos, dest, accuracy)) {
+          finishingRef.current = ck.id
+          finishCheckin(ck.id, 'arrived').catch((e) => {
+            console.error(e)
+            finishingRef.current = null
+          })
+        }
+      }
+
+      // 4) Cercas virtuais
       if (accuracy <= 200 && placesRef.current.length > 0) {
         const prev = loadPlaceStates(me.uid)
         const { next, transitions } = evaluateGeofences(pos, accuracy, placesRef.current, prev)

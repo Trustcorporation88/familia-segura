@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Bell, LogIn, LogOut, Siren } from 'lucide-react'
+import { ArrowLeft, Bell, CheckCircle2, LogIn, LogOut, Siren, Timer, TriangleAlert } from 'lucide-react'
 import { EmptyState, PageHeader } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
@@ -10,6 +10,9 @@ import type { CircleEvent } from '../lib/types'
 function describe(e: CircleEvent, me: string | undefined) {
   const who = e.uid === me ? 'Você' : firstName(e.name)
   if (e.type === 'sos') return `${who} enviou um SOS`
+  if (e.type === 'checkin_late') return `${who} não chegou em ${e.placeName ?? 'destino'} até ${hourMinute(e.dueAt)}`
+  if (e.type === 'checkin_ok') return `${who} chegou bem em ${e.placeName ?? 'destino'}`
+  if (e.type === 'checkin_start') return `${who} foi para ${e.placeName ?? 'um lugar'} (até ${hourMinute(e.dueAt)})`
   if (e.type === 'arrive') return `${who} chegou em ${e.placeName ?? 'um lugar'}`
   return `${who} saiu de ${e.placeName ?? 'um lugar'}`
 }
@@ -39,12 +42,20 @@ export default function AlertsPage() {
         ) : (
           <ol className="space-y-2">
             {events.map((e) => {
-              const Icon = e.type === 'sos' ? Siren : e.type === 'arrive' ? LogIn : LogOut
+              const urgent = e.type === 'sos' || e.type === 'checkin_late'
+              const Icon =
+                e.type === 'sos' ? Siren : e.type === 'checkin_late' ? TriangleAlert : e.type === 'checkin_ok' ? CheckCircle2 : e.type === 'checkin_start' ? Timer : e.type === 'arrive' ? LogIn : LogOut
               return (
-                <li key={e.id} className={`flex items-center gap-3 rounded-2xl p-3 ring-1 ${e.type === 'sos' ? 'bg-red-50 ring-red-200' : 'bg-white ring-slate-200'}`}>
+                <li key={e.id} className={`flex items-center gap-3 rounded-2xl p-3 ring-1 ${urgent ? 'bg-red-50 ring-red-200' : 'bg-white ring-slate-200'}`}>
                   <span
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                      e.type === 'sos' ? 'bg-red-600 text-white' : e.type === 'arrive' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                      urgent
+                        ? 'bg-red-600 text-white'
+                        : e.type === 'arrive' || e.type === 'checkin_ok'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : e.type === 'checkin_start'
+                            ? 'bg-brand-50 text-brand-700'
+                            : 'bg-amber-100 text-amber-700'
                     }`}
                   >
                     <Icon className="h-5 w-5" />
@@ -55,7 +66,7 @@ export default function AlertsPage() {
                       {hourMinute(e.ts)} · {timeAgo(e.ts)}
                     </p>
                   </div>
-                  {e.type === 'sos' && e.lat != null && e.lng != null && (
+                  {urgent && e.lat != null && e.lng != null && (
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${e.lat},${e.lng}`}
                       target="_blank"

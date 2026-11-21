@@ -4,14 +4,17 @@ import { Clock, Map, MapPin, Menu, Siren } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
 import { useToast } from '../context/ToastContext'
-import { firstName } from '../lib/format'
-import { tsToDate } from '../lib/format'
+import { firstName, hourMinute, tsToDate } from '../lib/format'
 import type { CircleEvent } from '../lib/types'
 import { SosDialog } from './SosDialog'
 
 function eventText(e: CircleEvent): { title: string; body?: string } {
   const who = firstName(e.name)
   if (e.type === 'sos') return { title: `🚨 ${who} pediu ajuda (SOS)`, body: 'Abra o mapa para ver onde ela/ele está.' }
+  if (e.type === 'checkin_late')
+    return { title: `⚠️ ${who} não chegou em ${e.placeName ?? 'destino'} no horário`, body: `Combinado até ${hourMinute(e.dueAt)}. Veja a última posição no mapa e tente ligar.` }
+  if (e.type === 'checkin_ok') return { title: `✅ ${who} chegou bem em ${e.placeName ?? 'destino'}` }
+  if (e.type === 'checkin_start') return { title: `${who} está indo para ${e.placeName ?? 'um lugar'}`, body: `Chega até ${hourMinute(e.dueAt)}.` }
   if (e.type === 'arrive') return { title: `${who} chegou em ${e.placeName ?? 'um lugar'}` }
   return { title: `${who} saiu de ${e.placeName ?? 'um lugar'}` }
 }
@@ -31,8 +34,9 @@ function useLiveAlerts() {
       const at = tsToDate(e.ts)?.getTime() ?? Date.now()
       if (at < startedAt.current - 5000 || e.uid === profile?.uid) continue
       const { title, body } = eventText(e)
-      toast.show({ kind: e.type === 'sos' ? 'danger' : 'info', title, body }, e.type === 'sos' ? 15000 : 6000)
-      if (e.type === 'sos' && 'vibrate' in navigator) navigator.vibrate?.([300, 150, 300, 150, 600])
+      const urgent = e.type === 'sos' || e.type === 'checkin_late'
+      toast.show({ kind: urgent ? 'danger' : e.type === 'checkin_ok' ? 'success' : 'info', title, body }, urgent ? 15000 : 6000)
+      if (urgent && 'vibrate' in navigator) navigator.vibrate?.([300, 150, 300, 150, 600])
       if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
         navigator.serviceWorker?.ready
           .then((reg) => reg.showNotification(title, { body, icon: '/icon-192.png', tag: e.id }))

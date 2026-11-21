@@ -3,16 +3,17 @@ import { Link } from 'react-router-dom'
 import { Circle as LCircle, Marker, Popup } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import type { Map as LeafletMap } from 'leaflet'
-import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, LocateFixed, MapPinOff, UserPlus } from 'lucide-react'
+import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, LocateFixed, MapPinOff, Timer, UserPlus } from 'lucide-react'
 import { BaseMap, FitBounds } from '../components/map/BaseMap'
 import { clusterIcon, memberIcon, placeIcon } from '../components/map/icons'
 import { Avatar } from '../components/Avatar'
 import { InviteDialog } from '../components/InviteDialog'
+import { CheckinDialog, MyCheckinBar, countdown, useNow } from '../components/Checkin'
 import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { formatDistance, metersBetween } from '../lib/geo'
-import { firstName, isStale, timeAgo, tsToDate } from '../lib/format'
+import { firstName, hourMinute, isStale, timeAgo, tsToDate } from '../lib/format'
 import type { MemberLocation, Place } from '../lib/types'
 
 function placeOf(m: MemberLocation, places: Place[]): Place | null {
@@ -43,7 +44,9 @@ function Battery({ level, charging }: { level: number | null; charging: boolean 
 
 export default function MapPage() {
   const { profile } = useAuth()
-  const { circle, members, places, events } = useCircle()
+  const { circle, members, places, events, checkins, myCheckin } = useCircle()
+  const now = useNow()
+  const [checkinOpen, setCheckinOpen] = useState(false)
   const { status, position, retry } = useTracker()
   const [map, setMap] = useState<LeafletMap | null>(null)
   const [sheetOpen, setSheetOpen] = useState(true)
@@ -92,7 +95,7 @@ export default function MapPage() {
             <Marker
               key={m.uid}
               position={[m.lat!, m.lng!]}
-              icon={memberIcon(m.name, m.color, { stale: isStale(m.updatedAt), me: m.uid === profile?.uid, sos: recentSos?.uid === m.uid })}
+              icon={memberIcon(m.name, m.color, { stale: isStale(m.updatedAt), me: m.uid === profile?.uid, sos: recentSos?.uid === m.uid || checkins.some((c) => c.uid === m.uid && countdown(c, now).late) })}
               zIndexOffset={m.uid === profile?.uid ? 500 : 0}
             >
               <Popup>
@@ -167,6 +170,20 @@ export default function MapPage() {
           {sheetOpen ? <ChevronDown className="h-5 w-5 text-slate-400" /> : <ChevronUp className="h-5 w-5 text-slate-400" />}
         </button>
         {sheetOpen && (
+          <div className="px-3 pb-1">
+            {myCheckin ? (
+              <MyCheckinBar />
+            ) : (
+              <button
+                onClick={() => setCheckinOpen(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-50 py-2.5 text-sm font-semibold text-brand-700 ring-1 ring-brand-100 hover:bg-brand-100"
+              >
+                <Timer className="h-4 w-4" /> Combinar chegada
+              </button>
+            )}
+          </div>
+        )}
+        {sheetOpen && (
           <ul className="max-h-[min(38vh,280px)] md:max-h-[calc(100dvh-14rem)] divide-y divide-slate-100 overflow-y-auto px-2 pb-3">
             {members.map((m) => {
               const isMe = m.uid === profile?.uid
@@ -174,6 +191,8 @@ export default function MapPage() {
               const dist =
                 !isMe && position && m.lat != null && m.lng != null ? formatDistance(metersBetween(position, { lat: m.lat, lng: m.lng })) : null
               const stale = isStale(m.updatedAt)
+              const ck = checkins.find((c) => c.uid === m.uid)
+              const cd = ck ? countdown(ck, now) : null
               return (
                 <li key={m.uid}>
                   <button onClick={() => focus(m)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50">
@@ -182,8 +201,14 @@ export default function MapPage() {
                       <span className="flex items-center gap-2">
                         <span className="truncate font-semibold text-slate-900">{isMe ? 'Você' : firstName(m.name)}</span>
                         {recentSos?.uid === m.uid && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">SOS</span>}
+                        {cd?.late && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">ATRASADO</span>}
                         {m.sharing === false && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">pausado</span>}
                       </span>
+                      {ck && (
+                        <span className={`flex items-center gap-1 truncate text-xs font-medium ${cd?.late ? 'text-red-700' : 'text-brand-700'}`}>
+                          <Timer className="h-3.5 w-3.5 shrink-0" /> Indo para {ck.placeName} · até {hourMinute(ck.dueAt)}
+                        </span>
+                      )}
                       <span className="block truncate text-sm text-slate-500">
                         {m.lat == null
                           ? 'Aguardando localização'
@@ -213,6 +238,7 @@ export default function MapPage() {
       </section>
 
       <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
+      <CheckinDialog open={checkinOpen} onClose={() => setCheckinOpen(false)} />
     </div>
   )
 }

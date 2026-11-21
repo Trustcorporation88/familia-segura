@@ -45,12 +45,12 @@ function SignedInApp({ profile }: { profile: UserProfile }) {
 }
 
 function CircleGate({ profile }: { profile: UserProfile }) {
-  const { circle, places, me, ready } = useCircle()
+  const { circle, places, me, myCheckin, ready } = useCircle()
   if (!ready) return <FullScreenSpinner label="Carregando sua família…" />
   if (!circle || !circle.members.includes(profile.uid)) return <Onboarding />
 
   return (
-    <TrackerProvider profile={profile} circleId={circle.id} places={places} sharing={me?.sharing !== false}>
+    <TrackerProvider profile={profile} circleId={circle.id} places={places} sharing={me?.sharing !== false} checkin={myCheckin}>
       <Suspense fallback={<Spinner />}>
         <Routes>
           <Route element={<AppShell />}>

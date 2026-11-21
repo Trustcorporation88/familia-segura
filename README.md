@@ -8,6 +8,7 @@ React + Vite + TypeScript, Tailwind, Supabase (Auth + Postgres + Realtime) e Lea
 - **Círculo familiar** com código de convite de 6 letras (criar, entrar, sair, renomear)
 - **Mapa ao vivo** com pins por pessoa, agrupamento automático (cluster) quando estão juntos, bateria, "atualizado há X" e pin cinza para posição antiga
 - **Lugares (cercas virtuais)**: Casa, Escola, Trabalho… com raio ajustável. Alertas automáticos de **chegada e saída**, com histerese para não disparar alerta falso quando o GPS oscila na borda
+- **Chegada combinada** (inspirada no "plano de viagem" do montanhismo e de busca e salvamento): a pessoa escolhe o destino e o horário. Ao entrar na cerca do destino, a família recebe "chegou bem" automaticamente. Se o prazo + 10 min de tolerância passar, **o próprio servidor** (pg_cron, a cada minuto) dispara o alerta com a última posição conhecida, mesmo que o celular tenha descarregado ou ficado sem sinal. Dá para adiar (+15 min), confirmar na mão ou cancelar
 - **SOS** no centro da barra inferior: avisa todo o círculo com a localização e tem atalhos para 190 e 192
 - **Histórico do dia**: trajeto no mapa, km percorridos, horário de início e fim, navegação por dia
 - **Link temporário**: compartilha a localização ao vivo por 15 min, 1 h, 4 h ou 8 h com quem não tem o app. O link expira sozinho e pode ser desativado
@@ -33,6 +34,7 @@ Tudo que o app precisa está em `supabase/migrations/` e **já foi aplicado** no
 - Funções (RPC): `create_circle`, `join_circle`, `leave_circle` e `get_share` (link público sem permitir listar outros links)
 - Perfil criado automaticamente no cadastro (gatilho em `auth.users`)
 - Tempo real (Realtime) em localização, lugares, alertas e círculo
+- **Chegada combinada no servidor**: `start_checkin`, `finish_checkin`, `extend_checkin` e o job `process_overdue_checkins` (a cada minuto)
 - **Limpeza automática (pg_cron, todo dia 04:17 UTC)**: trajeto apagado após 30 dias, alertas após 90, links vencidos após 1 dia
 
 ### Configuração do Auth (uma vez, no painel do Supabase)

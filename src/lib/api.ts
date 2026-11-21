@@ -2,6 +2,8 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { makeToken } from './format'
 import type {
+  Checkin,
+  CheckinStatus,
   Circle,
   CircleEvent,
   CircleEventType,
@@ -278,6 +280,7 @@ export function watchEvents(circleId: string, cb: (list: CircleEvent[]) => void)
         lat: number | null
         lng: number | null
         ts: string
+        due_at: string | null
       }[]
       return rows.map((r) => ({
         id: r.id,
@@ -289,6 +292,7 @@ export function watchEvents(circleId: string, cb: (list: CircleEvent[]) => void)
         lat: r.lat,
         lng: r.lng,
         ts: r.ts,
+        dueAt: r.due_at,
       }))
     },
     cb,
@@ -313,6 +317,61 @@ export async function pushEvent(
       lng: extra.lng ?? null,
     }),
   )
+}
+
+/* ---------- Chegada combinada ---------- */
+
+export function watchCheckins(circleId: string, cb: (list: Checkin[]) => void): Unsubscribe {
+  return live(
+    'checkins',
+    [{ table: 'checkins', filter: `circle_id=eq.${circleId}` }],
+    async () => {
+      const since = new Date(Date.now() - 12 * 3600_000).toISOString()
+      const rows = check(
+        await supabase
+          .from('checkins')
+          .select('*')
+          .eq('circle_id', circleId)
+          .in('status', ['active', 'late'])
+          .gte('created_at', since)
+          .order('due_at'),
+      ) as {
+        id: string
+        user_id: string
+        name: string
+        place_id: string | null
+        place_name: string
+        due_at: string
+        grace_minutes: number
+        status: CheckinStatus
+        created_at: string
+      }[]
+      return rows.map((r) => ({
+        id: r.id,
+        uid: r.user_id,
+        name: r.name,
+        placeId: r.place_id,
+        placeName: r.place_name,
+        dueAt: r.due_at,
+        graceMinutes: r.grace_minutes,
+        status: r.status,
+        createdAt: r.created_at,
+      }))
+    },
+    cb,
+  )
+}
+
+export async function startCheckin(placeId: string, due: Date, graceMinutes = 10): Promise<string> {
+  return check(await supabase.rpc('start_checkin', { p_place: placeId, p_due: due.toISOString(), p_grace: graceMinutes })) as string
+}
+
+export async function finishCheckin(id: string, status: 'arrived' | 'cancelled') {
+  check(await supabase.rpc('finish_checkin', { p_id: id, p_status: status }))
+}
+
+export async function extendCheckin(id: string, minutes: number) {
+  check(await supabase.rpc('extend_checkin', { p_id: id, p_minutes: minutes }))
 }
 
 /* ---------- Link temporário ---------- */

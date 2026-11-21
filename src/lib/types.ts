@@ -41,7 +41,7 @@ export interface Place {
   createdBy: string | null
 }
 
-export type CircleEventType = 'arrive' | 'leave' | 'sos'
+export type CircleEventType = 'arrive' | 'leave' | 'sos' | 'checkin_start' | 'checkin_ok' | 'checkin_late'
 
 export interface CircleEvent {
   id: string
@@ -53,6 +53,22 @@ export interface CircleEvent {
   lat: number | null
   lng: number | null
   ts: Ts | null
+  dueAt: Ts | null
+}
+
+export type CheckinStatus = 'active' | 'arrived' | 'late' | 'cancelled'
+
+/** Chegada combinada: "vou para X e chego até HH:MM". */
+export interface Checkin {
+  id: string
+  uid: string
+  name: string
+  placeId: string | null
+  placeName: string
+  dueAt: Ts
+  graceMinutes: number
+  status: CheckinStatus
+  createdAt: Ts
 }
 
 export interface HistoryPoint {
