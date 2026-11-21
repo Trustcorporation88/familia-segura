@@ -1,0 +1,218 @@
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Circle as LCircle, Marker, Popup } from 'react-leaflet'
+import MarkerClusterGroup from 'react-leaflet-cluster'
+import type { Map as LeafletMap } from 'leaflet'
+import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, LocateFixed, MapPinOff, UserPlus } from 'lucide-react'
+import { BaseMap, FitBounds } from '../components/map/BaseMap'
+import { clusterIcon, memberIcon, placeIcon } from '../components/map/icons'
+import { Avatar } from '../components/Avatar'
+import { InviteDialog } from '../components/InviteDialog'
+import { useAuth } from '../context/AuthContext'
+import { useCircle } from '../context/CircleContext'
+import { useTracker } from '../context/TrackerContext'
+import { formatDistance, metersBetween } from '../lib/geo'
+import { firstName, isStale, timeAgo, tsToDate } from '../lib/format'
+import type { MemberLocation, Place } from '../lib/types'
+
+function placeOf(m: MemberLocation, places: Place[]): Place | null {
+  if (m.lat == null || m.lng == null) return null
+  return places.find((p) => metersBetween({ lat: m.lat!, lng: m.lng! }, p) <= p.radius) ?? null
+}
+
+/** Altura aproximada da lista de pessoas, para o zoom não esconder ninguém atrás dela. */
+const isWide = () => window.innerWidth >= 768
+function sheetInset() {
+  return isWide() ? 48 : Math.min(window.innerHeight * 0.46, 340) + 24
+}
+/** No desktop a lista fica à esquerda. */
+function leftInset() {
+  return isWide() ? 400 : 48
+}
+
+function Battery({ level, charging }: { level: number | null; charging: boolean | null }) {
+  if (level == null) return null
+  const Icon = charging ? BatteryCharging : level <= 20 ? BatteryLow : BatteryMedium
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs ${level <= 20 && !charging ? 'text-red-600' : 'text-slate-500'}`}>
+      <Icon className="h-4 w-4" />
+      {level}%
+    </span>
+  )
+}
+
+export default function MapPage() {
+  const { profile } = useAuth()
+  const { circle, members, places, events } = useCircle()
+  const { status, position, retry } = useTracker()
+  const [map, setMap] = useState<LeafletMap | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(true)
+  const [inviteOpen, setInviteOpen] = useState(false)
+
+  const located = members.filter((m) => m.lat != null && m.lng != null)
+  const fitKey = located.length ? `${located.length}` : 'none'
+  const bounds = useMemo(
+    () => (located.length ? (located.map((m) => [m.lat!, m.lng!]) as [number, number][]) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fitKey],
+  )
+
+  const lastSeen = Number(localStorage.getItem('fs:alertsSeen') || 0)
+  const unread = events.filter((e) => e.uid !== profile?.uid && (tsToDate(e.ts)?.getTime() ?? 0) > lastSeen).length
+  const recentSos = events.find((e) => e.type === 'sos' && Date.now() - (tsToDate(e.ts)?.getTime() ?? 0) < 30 * 60_000)
+
+  function focus(m: MemberLocation) {
+    if (!map || m.lat == null || m.lng == null) return
+    map.flyTo([m.lat, m.lng], 16, { duration: 0.8 })
+  }
+
+  function fitAll() {
+    if (!map || !located.length) return
+    map.fitBounds(located.map((m) => [m.lat!, m.lng!]) as [number, number][], {
+      paddingTopLeft: [sheetOpen ? leftInset() : 48, 96],
+      paddingBottomRight: [48, sheetOpen ? sheetInset() : 96],
+      maxZoom: 16,
+    })
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      <BaseMap onReady={setMap}>
+        <FitBounds bounds={bounds} fitKey={fitKey} bottomInset={sheetInset()} leftInset={leftInset()} />
+
+        {places.map((p) => (
+          <LCircle key={p.id} center={[p.lat, p.lng]} radius={p.radius} pathOptions={{ color: '#7c3aed', weight: 2, fillOpacity: 0.08 }} />
+        ))}
+        {places.map((p) => (
+          <Marker key={`pl-${p.id}`} position={[p.lat, p.lng]} icon={placeIcon(p.emoji)} interactive={false} />
+        ))}
+
+        <MarkerClusterGroup iconCreateFunction={clusterIcon} showCoverageOnHover={false} maxClusterRadius={50} spiderfyOnMaxZoom chunkedLoading>
+          {located.map((m) => (
+            <Marker
+              key={m.uid}
+              position={[m.lat!, m.lng!]}
+              icon={memberIcon(m.name, m.color, { stale: isStale(m.updatedAt), me: m.uid === profile?.uid, sos: recentSos?.uid === m.uid })}
+              zIndexOffset={m.uid === profile?.uid ? 500 : 0}
+            >
+              <Popup>
+                <strong>{m.uid === profile?.uid ? 'Você' : m.name}</strong>
+                <br />
+                {placeOf(m, places)?.name ?? 'Fora dos lugares salvos'} · {timeAgo(m.updatedAt)}
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
+      </BaseMap>
+
+      {/* Barra superior */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[900] flex items-start gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="pointer-events-auto flex min-w-0 items-center gap-2 rounded-2xl bg-white/95 px-4 py-2.5 shadow-md ring-1 ring-slate-200 backdrop-blur">
+          <span className="truncate font-semibold text-slate-900">{circle?.name ?? 'Meu círculo'}</span>
+          <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">{members.length}</span>
+        </div>
+        <div className="flex-1" />
+        <button onClick={() => setInviteOpen(true)} aria-label="Convidar" className="pointer-events-auto rounded-2xl bg-white/95 p-3 text-slate-700 shadow-md ring-1 ring-slate-200 hover:text-brand-700">
+          <UserPlus className="h-5 w-5" />
+        </button>
+        <Link to="/alertas" aria-label={`Alertas${unread ? `, ${unread} novos` : ''}`} className="pointer-events-auto relative rounded-2xl bg-white/95 p-3 text-slate-700 shadow-md ring-1 ring-slate-200 hover:text-brand-700">
+          <Bell className="h-5 w-5" />
+          {unread > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white">
+              {unread > 9 ? '9+' : unread}
+            </span>
+          )}
+        </Link>
+      </div>
+
+      {/* Aviso de GPS */}
+      {(status === 'denied' || status === 'unsupported' || status === 'error' || status === 'paused') && (
+        <div className="absolute inset-x-3 top-[calc(max(0.75rem,env(safe-area-inset-top))+3.75rem)] z-[900] mx-auto max-w-md rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 shadow-md ring-1 ring-amber-200">
+          <div className="flex items-start gap-2">
+            <MapPinOff className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="flex-1">
+              {status === 'denied' && 'A localização está bloqueada no navegador. Libere nas configurações do site para sua família te ver.'}
+              {status === 'unsupported' && 'Este navegador não oferece localização.'}
+              {status === 'error' && 'Não conseguimos pegar seu GPS agora.'}
+              {status === 'paused' && 'Você pausou o compartilhamento. Sua família vê sua última posição.'}
+            </div>
+            {(status === 'error' || status === 'denied') && (
+              <button onClick={retry} className="font-semibold text-amber-900 underline">
+                Tentar de novo
+              </button>
+            )}
+            {status === 'paused' && (
+              <Link to="/ajustes" className="font-semibold text-amber-900 underline">
+                Ajustes
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Botão centralizar */}
+      <button
+        onClick={fitAll}
+        aria-label="Mostrar todos"
+        className={`absolute right-3 z-[900] rounded-2xl bg-white p-3 text-slate-700 shadow-md ring-1 ring-slate-200 transition-all hover:text-brand-700 ${sheetOpen ? 'bottom-[min(46vh,340px)] md:bottom-6' : 'bottom-20 md:bottom-6'}`}
+      >
+        <LocateFixed className="h-5 w-5" />
+      </button>
+
+      {/* Lista de membros (bottom sheet) */}
+      <section className="absolute inset-x-0 bottom-0 z-[900] mx-auto max-w-2xl rounded-t-3xl bg-white shadow-sheet ring-1 ring-slate-200 md:inset-x-auto md:bottom-auto md:left-3 md:top-20 md:w-[370px] md:rounded-3xl">
+        <button onClick={() => setSheetOpen((o) => !o)} className="flex w-full items-center justify-between px-5 pb-2 pt-3" aria-expanded={sheetOpen}>
+          <span className="mx-auto block h-1.5 w-10 rounded-full bg-slate-300 sm:hidden" />
+          <span className="absolute left-5 top-3 text-sm font-semibold text-slate-900 sm:static">Pessoas</span>
+          {sheetOpen ? <ChevronDown className="h-5 w-5 text-slate-400" /> : <ChevronUp className="h-5 w-5 text-slate-400" />}
+        </button>
+        {sheetOpen && (
+          <ul className="max-h-[min(38vh,280px)] md:max-h-[calc(100dvh-14rem)] divide-y divide-slate-100 overflow-y-auto px-2 pb-3">
+            {members.map((m) => {
+              const isMe = m.uid === profile?.uid
+              const place = placeOf(m, places)
+              const dist =
+                !isMe && position && m.lat != null && m.lng != null ? formatDistance(metersBetween(position, { lat: m.lat, lng: m.lng })) : null
+              const stale = isStale(m.updatedAt)
+              return (
+                <li key={m.uid}>
+                  <button onClick={() => focus(m)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50">
+                    <Avatar name={m.name} color={m.color} size={44} dimmed={stale} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate font-semibold text-slate-900">{isMe ? 'Você' : firstName(m.name)}</span>
+                        {recentSos?.uid === m.uid && <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white">SOS</span>}
+                        {m.sharing === false && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">pausado</span>}
+                      </span>
+                      <span className="block truncate text-sm text-slate-500">
+                        {m.lat == null
+                          ? 'Aguardando localização'
+                          : place
+                            ? `${place.emoji} Em ${place.name}`
+                            : dist
+                              ? `A ${dist} de você`
+                              : 'Fora dos lugares salvos'}
+                        {' · '}
+                        {timeAgo(m.updatedAt)}
+                      </span>
+                    </span>
+                    <Battery level={m.battery} charging={m.charging} />
+                  </button>
+                </li>
+              )
+            })}
+            {members.length <= 1 && (
+              <li className="px-3 py-3">
+                <button onClick={() => setInviteOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 py-3 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+                  <UserPlus className="h-4 w-4" /> Convidar alguém da família
+                </button>
+              </li>
+            )}
+          </ul>
+        )}
+      </section>
+
+      <InviteDialog open={inviteOpen} onClose={() => setInviteOpen(false)} />
+    </div>
+  )
+}

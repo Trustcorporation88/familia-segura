@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+}
+
+/* ---------- Mapa ---------- */
+
+.leaflet-container {
+  font-family: inherit;
+  background: #e5e7eb;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 4px 12px -4px rgb(15 23 42 / 0.25) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  margin-top: 72px !important;
+}
+.leaflet-control-zoom a {
+  width: 40px !important;
+  height: 40px !important;
+  line-height: 40px !important;
+}
+
+/* Pin do membro */
+.fs-pin-wrap {
+  background: transparent;
+  border: none;
+}
+.fs-pin {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px 9999px 9999px 4px;
+  transform: rotate(-45deg);
+  background: var(--pin);
+  box-shadow: 0 6px 14px -4px rgb(15 23 42 / 0.45);
+  border: 3px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fs-pin span {
+  transform: rotate(45deg);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.fs-pin--me {
+  outline: 3px solid rgb(124 58 237 / 0.35);
+  outline-offset: 2px;
+}
+.fs-pin--stale {
+  filter: grayscale(0.85);
+  opacity: 0.7;
+}
+.fs-pin--sos::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 9999px;
+  border: 3px solid #dc2626;
+  animation: fs-pulse 1.2s ease-out infinite;
+}
+@keyframes fs-pulse {
+  from {
+    transform: scale(0.7);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Lugar */
+.fs-place-wrap {
+  background: transparent;
+  border: none;
+}
+.fs-place {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px -2px rgb(15 23 42 / 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.fs-dot-wrap {
+  background: transparent;
+  border: none;
+}
+.fs-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid #fff;
+}
+
+/* Cluster */
+.fs-cluster-wrap {
+  background: transparent;
+  border: none;
+}
+.fs-cluster {
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  background: #7c3aed;
+  border: 4px solid rgb(255 255 255 / 0.9);
+  box-shadow: 0 0 0 6px rgb(124 58 237 / 0.25), 0 6px 14px -4px rgb(15 23 42 / 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+}
