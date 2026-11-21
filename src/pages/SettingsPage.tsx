@@ -10,6 +10,7 @@ import { useTracker } from '../context/TrackerContext'
 import { useToast } from '../context/ToastContext'
 import { leaveCircle, renameCircle, setSharing } from '../lib/api'
 import { dataErrorMessage, firstName } from '../lib/format'
+import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 
 function Row({ icon, title, subtitle, to, onClick, right }: { icon: ReactNode; title: string; subtitle?: string; to?: string; onClick?: () => void; right?: ReactNode }) {
   const inner = (
@@ -33,7 +34,7 @@ export default function SettingsPage() {
   const { status, syncStatus } = useTracker()
   const toast = useToast()
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [notif, setNotif] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'denied')
+  const [notif, setNotif] = useState<PushState>(() => pushState())
 
   if (!profile || !circle) return null
   const sharing = me?.sharing !== false
@@ -50,10 +51,15 @@ export default function SettingsPage() {
   }
 
   async function askNotifications() {
-    if (typeof Notification === 'undefined') return
-    const p = await Notification.requestPermission()
-    setNotif(p)
-    if (p === 'granted') toast.show({ kind: 'success', title: 'Notificações ativadas', body: 'Você recebe alertas enquanto o app estiver aberto.' })
+    if (!profile) return
+    try {
+      const p = await enablePush(profile.uid)
+      setNotif(p)
+      if (p === 'granted') toast.show({ kind: 'success', title: 'Notificações ativadas', body: 'Este aparelho recebe SOS, atrasos e pedidos de localização mesmo com o app fechado.' })
+      else if (p === 'denied') toast.show({ kind: 'danger', title: 'Notificações bloqueadas', body: 'Libere nas configurações do navegador para este site.' })
+    } catch (e) {
+      toast.show({ kind: 'danger', title: 'Não foi possível ativar', body: dataErrorMessage(e) })
+    }
   }
 
   async function rename() {
@@ -108,8 +114,20 @@ export default function SettingsPage() {
         <Card className="!p-0 overflow-hidden divide-y divide-slate-100">
           <Row icon={<Link2 className="h-5 w-5" />} title="Link temporário" subtitle="Mostre onde você está por um tempo" to="/compartilhar" />
           <Row icon={<Bell className="h-5 w-5" />} title="Alertas" subtitle="Chegadas, saídas e SOS" to="/alertas" />
-          {notif !== 'granted' && notif !== 'denied' && (
-            <Row icon={<Bell className="h-5 w-5" />} title="Ativar notificações" subtitle="Receba avisos do círculo" onClick={askNotifications} />
+          {notif === 'default' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Ativar notificações" subtitle="SOS, atrasos e pedidos de localização, mesmo com o app fechado" onClick={askNotifications} />
+          )}
+          {notif === 'granted' && (
+            <Row icon={<Bell className="h-5 w-5 text-emerald-600" />} title="Notificações ativas neste aparelho" subtitle="Toque para reconferir" onClick={askNotifications} right={<span />} />
+          )}
+          {notif === 'denied' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Notificações bloqueadas" subtitle="Libere nas configurações do navegador para este site" onClick={askNotifications} right={<span />} />
+          )}
+          {notif === 'ios_not_installed' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Notificações no iPhone" subtitle="Toque em Compartilhar e em “Adicionar à Tela de Início”. Depois abra por lá e ative aqui." onClick={() => undefined} right={<span />} />
+          )}
+          {notif === 'unsupported' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Notificações não disponíveis" subtitle="Este navegador não oferece push" onClick={() => undefined} right={<span />} />
           )}
         </Card>
 
@@ -122,7 +140,7 @@ export default function SettingsPage() {
           </Card>
         </section>
 
-        <button onClick={logout} className="w-full rounded-2xl py-3 text-center font-semibold text-red-600 hover:bg-red-50">
+        <button onClick={() => disablePush().finally(logout)} className="w-full rounded-2xl py-3 text-center font-semibold text-red-600 hover:bg-red-50">
           Sair da conta
         </button>
         <p className="pb-4 text-center text-xs text-slate-400">Família Segura v2.0 · Mapas © OpenStreetMap</p>

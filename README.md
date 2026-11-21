@@ -63,7 +63,7 @@ supabase/migrations/     esquema, RLS e rotinas do banco
 ## Limitações conhecidas (e próximos passos)
 
 - **Localização em segundo plano**: navegadores só enviam GPS com o app aberto na tela. Para rastrear com o celular bloqueado é preciso empacotar como app nativo (ex.: [Capacitor](https://capacitorjs.com) + plugin de background geolocation).
-- **Push com o app fechado**: hoje os alertas aparecem com o app aberto. Para push real: Web Push (VAPID) + uma Edge Function do Supabase disparada por um Database Webhook em `events`.
+- **Push com o app fechado**: feito com Web Push (VAPID). Ao inserir em `events`, um gatilho (pg_net) chama a Edge Function `send-push`, que envia para os aparelhos em `push_subscriptions`. No iPhone só funciona com o app adicionado à Tela de Início. O push **não liga o GPS sozinho**: em "Pedir localização" a pessoa precisa tocar na notificação para o app abrir e a posição atualizar.
 
 ## Referências usadas
 

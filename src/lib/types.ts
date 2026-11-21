@@ -41,7 +41,7 @@ export interface Place {
   createdBy: string | null
 }
 
-export type CircleEventType = 'arrive' | 'leave' | 'sos' | 'checkin_start' | 'checkin_ok' | 'checkin_late'
+export type CircleEventType = 'arrive' | 'leave' | 'sos' | 'checkin_start' | 'checkin_ok' | 'checkin_late' | 'ping'
 
 export interface CircleEvent {
   id: string
@@ -54,6 +54,8 @@ export interface CircleEvent {
   lng: number | null
   ts: Ts | null
   dueAt: Ts | null
+  /** Só em 'ping': de quem a localização foi pedida */
+  targetUid: string | null
 }
 
 export type CheckinStatus = 'active' | 'arrived' | 'late' | 'cancelled'
