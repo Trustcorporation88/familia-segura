@@ -8,4 +8,6 @@ dev-dist
 .DS_Store
 .vercel
 .firebase
+test-results/
+playwright-report/
 public/*.png

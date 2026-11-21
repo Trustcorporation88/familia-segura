@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { DialogFocus } from './DialogFocus'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, Clock, MapPin, Plus, Timer, X } from 'lucide-react'
 import { useCircle } from '../context/CircleContext'
@@ -46,7 +47,7 @@ export function CheckinDialog({ open, onClose }: { open: boolean; onClose: () =>
     if (open && !placeId && places[0]) setPlaceId(places[0].id)
   }, [open, places, placeId])
 
-  const due = useMemo(() => {
+  function calculateDue() {
     if (customTime) {
       const [h, m] = customTime.split(':').map(Number)
       const d = new Date()
@@ -55,7 +56,8 @@ export function CheckinDialog({ open, onClose }: { open: boolean; onClose: () =>
       return d
     }
     return new Date(Date.now() + minutes * 60_000)
-  }, [customTime, minutes])
+  }
+  const due = calculateDue()
 
   if (!open) return null
 
@@ -64,9 +66,10 @@ export function CheckinDialog({ open, onClose }: { open: boolean; onClose: () =>
     setSaving(true)
     setError('')
     try {
-      await startCheckin(placeId, due)
+      const submissionDue = calculateDue()
+      await startCheckin(placeId, submissionDue)
       const place = places.find((p) => p.id === placeId)
-      toast.show({ kind: 'success', title: `Combinado: ${place?.name} até ${hourMinute(due)}`, body: 'Quando você chegar, a família é avisada sozinha.' })
+      toast.show({ kind: 'success', title: `Combinado: ${place?.name} até ${hourMinute(due)}`, body: 'Com o app aberto e GPS ativo, a chegada pode ser registrada automaticamente. Não há confirmação de leitura.' })
       onClose()
     } catch (e) {
       setError(
@@ -78,6 +81,7 @@ export function CheckinDialog({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   return (
+    <DialogFocus onClose={onClose}>
     <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="checkin-title">
       <div className="max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between">
@@ -90,8 +94,7 @@ export function CheckinDialog({ open, onClose }: { open: boolean; onClose: () =>
         </div>
         <h2 id="checkin-title" className="mt-4 text-xl font-bold text-slate-900">Chegada combinada</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Diga para onde vai e até quando chega. Se chegar, avisamos que você chegou bem. Se não chegar, a família recebe um alerta com sua última
-          posição, <strong>mesmo se seu celular desligar</strong>.
+          Diga para onde vai e até quando chega. Com o app aberto e GPS ativo, registramos a chegada. Após o prazo e a tolerância, o servidor registra um alerta de atraso, mesmo com seu celular desligado. A família precisa abrir o app para consultar. Não há confirmação de leitura.
         </p>
 
         {places.length === 0 ? (
@@ -151,6 +154,7 @@ export function CheckinDialog({ open, onClose }: { open: boolean; onClose: () =>
         )}
       </div>
     </div>
+    </DialogFocus>
   )
 }
 
@@ -184,12 +188,12 @@ export function MyCheckinBar() {
             Indo para {myCheckin.placeName} · até {hourMinute(myCheckin.dueAt)}
           </p>
           <p className={`text-xs ${cd.late ? 'font-semibold text-red-700' : 'text-slate-500'}`}>
-            {cd.late && myCheckin.status === 'late' ? 'Sua família foi avisada do atraso' : cd.text}
+            {cd.late && myCheckin.status === 'late' ? 'Alerta de atraso registrado no círculo' : cd.text}
           </p>
         </div>
       </div>
       <div className="mt-2 grid grid-cols-3 gap-2">
-        <button disabled={busy} onClick={() => run(() => finishCheckin(myCheckin.id, 'arrived'), 'Família avisada: você chegou bem')} className="inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
+        <button disabled={busy} onClick={() => run(() => finishCheckin(myCheckin.id, 'arrived'), 'Chegada registrada no círculo')} className="inline-flex items-center justify-center gap-1 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">
           <CheckCircle2 className="h-4 w-4" /> Cheguei
         </button>
         <button disabled={busy} onClick={() => run(() => extendCheckin(myCheckin.id, 15), '+15 minutos no prazo')} className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200 disabled:opacity-60">

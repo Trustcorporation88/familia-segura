@@ -1,3 +1,4 @@
+import { DialogFocus } from './DialogFocus'
 import { useState } from 'react'
 import { Check, Copy, Share2, X } from 'lucide-react'
 import { useCircle } from '../context/CircleContext'
@@ -29,6 +30,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   return (
+    <DialogFocus onClose={onClose}>
     <div className="fixed inset-0 z-[1500] flex items-end justify-center bg-slate-900/50 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="invite-title">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex items-center justify-between">
@@ -47,5 +49,6 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
         </Button>
       </div>
     </div>
+    </DialogFocus>
   )
 }
