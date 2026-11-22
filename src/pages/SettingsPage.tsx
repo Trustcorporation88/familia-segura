@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, ChevronRight, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
+import { Bell, ChevronRight, KeyRound, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { InviteDialog } from '../components/InviteDialog'
 import { Card, PageHeader } from '../components/ui'
@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { useToast } from '../context/ToastContext'
-import { leaveCircle, renameCircle, setSharing } from '../lib/api'
+import { joinCircle, leaveCircle, renameCircle, setSharing } from '../lib/api'
 import { dataErrorMessage, firstName } from '../lib/format'
 import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 
@@ -66,6 +66,21 @@ export default function SettingsPage() {
     if (!circle) return
     const name = prompt('Novo nome do círculo', circle.name)
     if (name && name.trim()) await renameCircle(circle.id, name)
+  }
+
+  async function joinWithCode() {
+    if (!circle || !profile) return
+    const raw = prompt('Código de convite (6 letras) que você recebeu:')
+    if (!raw) return
+    const alone = members.length <= 1
+    if (!alone && !confirm(`Você vai sair de "${circle.name}" e entrar no outro círculo. Continuar?`)) return
+    try {
+      await joinCircle(profile, raw)
+      await leaveCircle(profile, circle)
+      toast.show({ kind: 'success', title: 'Você entrou no novo círculo' })
+    } catch (e) {
+      toast.show({ kind: 'danger', title: 'Não deu certo', body: dataErrorMessage(e) })
+    }
   }
 
   async function leave() {
@@ -136,6 +151,7 @@ export default function SettingsPage() {
           <Card className="!p-0 overflow-hidden divide-y divide-slate-100">
             <Row icon={<Users className="h-5 w-5" />} title={circle.name} subtitle={`${members.length} ${members.length === 1 ? 'pessoa' : 'pessoas'}: ${members.map((m) => firstName(m.name)).join(', ')}`} onClick={rename} right={<Pencil className="h-4 w-4 text-slate-400" />} />
             <Row icon={<UserPlus className="h-5 w-5" />} title="Convidar" subtitle={`Código ${circle.inviteCode}`} onClick={() => setInviteOpen(true)} />
+            <Row icon={<KeyRound className="h-5 w-5" />} title="Entrar com código" subtitle={members.length <= 1 ? "Recebeu um convite? Entre no círculo da família" : "Trocar para outro círculo"} onClick={joinWithCode} />
             <Row icon={<LogOut className="h-5 w-5" />} title="Sair do círculo" onClick={leave} right={<span />} />
           </Card>
         </section>
