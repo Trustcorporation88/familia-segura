@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Bell, CheckCircle2, LogIn, LogOut, Siren, Timer, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Bell, CheckCircle2, LocateFixed, LogIn, LogOut, Siren, Timer, TriangleAlert } from 'lucide-react'
 import { EmptyState, PageHeader } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
@@ -9,6 +9,7 @@ import type { CircleEvent } from '../lib/types'
 
 function describe(e: CircleEvent, me: string | undefined) {
   const who = e.uid === me ? 'Você' : firstName(e.name)
+  if (e.type === 'ping') return e.targetUid === me ? `${who} pediu sua localização` : `${who} pediu a localização de alguém`
   if (e.type === 'sos') return `${who} enviou um SOS`
   if (e.type === 'checkin_late') return `${who} não chegou em ${e.placeName ?? 'destino'} até ${hourMinute(e.dueAt)}`
   if (e.type === 'checkin_ok') return `${who} chegou bem em ${e.placeName ?? 'destino'}`
@@ -44,7 +45,7 @@ export default function AlertsPage() {
             {events.map((e) => {
               const urgent = e.type === 'sos' || e.type === 'checkin_late'
               const Icon =
-                e.type === 'sos' ? Siren : e.type === 'checkin_late' ? TriangleAlert : e.type === 'checkin_ok' ? CheckCircle2 : e.type === 'checkin_start' ? Timer : e.type === 'arrive' ? LogIn : LogOut
+                e.type === 'ping' ? LocateFixed : e.type === 'sos' ? Siren : e.type === 'checkin_late' ? TriangleAlert : e.type === 'checkin_ok' ? CheckCircle2 : e.type === 'checkin_start' ? Timer : e.type === 'arrive' ? LogIn : LogOut
               return (
                 <li key={e.id} className={`flex items-center gap-3 rounded-2xl p-3 ring-1 ${urgent ? 'bg-red-50 ring-red-200' : 'bg-white ring-slate-200'}`}>
                   <span
@@ -53,7 +54,7 @@ export default function AlertsPage() {
                         ? 'bg-red-600 text-white'
                         : e.type === 'arrive' || e.type === 'checkin_ok'
                           ? 'bg-emerald-100 text-emerald-700'
-                          : e.type === 'checkin_start'
+                          : e.type === 'checkin_start' || e.type === 'ping'
                             ? 'bg-brand-50 text-brand-700'
                             : 'bg-amber-100 text-amber-700'
                     }`}

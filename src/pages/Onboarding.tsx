@@ -5,12 +5,13 @@ import { Button, ErrorText, Field } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { createCircle, joinCircle } from '../lib/api'
 import { dataErrorMessage, firstName } from '../lib/format'
+import { clearInviteCode, pendingInviteCode } from '../lib/invite'
 
 export default function Onboarding() {
   const { profile, logout } = useAuth()
-  const [mode, setMode] = useState<'create' | 'join'>('create')
+  const [code, setCode] = useState(() => pendingInviteCode())
+  const [mode, setMode] = useState<'create' | 'join'>(() => (pendingInviteCode() ? 'join' : 'create'))
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -23,7 +24,10 @@ export default function Onboarding() {
     setLoading(true)
     try {
       if (mode === 'create') await createCircle(profile, name || `Família ${profile.name.split(' ').slice(-1)[0]}`)
-      else await joinCircle(profile, code)
+      else {
+        await joinCircle(profile, code)
+        clearInviteCode()
+      }
     } catch (err) {
       console.error(err)
       setError(dataErrorMessage(err))
@@ -34,7 +38,7 @@ export default function Onboarding() {
   return (
     <AuthLayout
       title={`Oi, ${firstName(profile.name)}!`}
-      subtitle="Crie o círculo da sua família ou entre com um código de convite."
+      subtitle={code ? "Você recebeu um convite. Confira o código e entre no círculo." : "Crie o círculo da sua família ou entre com um código de convite."}
       footer={<button onClick={logout} className="font-semibold text-brand-700 hover:underline">Sair da conta</button>}
     >
       <div className="mb-6 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1" role="tablist">

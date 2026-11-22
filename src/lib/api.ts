@@ -281,6 +281,7 @@ export function watchEvents(circleId: string, cb: (list: CircleEvent[]) => void)
         lng: number | null
         ts: string
         due_at: string | null
+        target_user_id: string | null
       }[]
       return rows.map((r) => ({
         id: r.id,
@@ -293,6 +294,7 @@ export function watchEvents(circleId: string, cb: (list: CircleEvent[]) => void)
         lng: r.lng,
         ts: r.ts,
         dueAt: r.due_at,
+        targetUid: r.target_user_id,
       }))
     },
     cb,
@@ -303,7 +305,7 @@ export async function pushEvent(
   circleId: string,
   profile: UserProfile,
   type: CircleEventType,
-  extra: { placeId?: string; placeName?: string; lat?: number | null; lng?: number | null } = {},
+  extra: { placeId?: string; placeName?: string; lat?: number | null; lng?: number | null; targetUid?: string } = {},
 ) {
   check(
     await supabase.from('events').insert({
@@ -315,8 +317,14 @@ export async function pushEvent(
       place_name: extra.placeName ?? null,
       lat: extra.lat ?? null,
       lng: extra.lng ?? null,
+      target_user_id: extra.targetUid ?? null,
     }),
   )
+}
+
+/** "Pedir localização": manda um push para a pessoa; ao tocar, o app dela abre e a posição atualiza. */
+export async function requestLocation(circleId: string, profile: UserProfile, targetUid: string) {
+  await pushEvent(circleId, profile, 'ping', { targetUid })
 }
 
 /* ---------- Chegada combinada ---------- */

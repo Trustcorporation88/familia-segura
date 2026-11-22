@@ -7,9 +7,11 @@ import { useToast } from '../context/ToastContext'
 import { firstName, hourMinute, tsToDate } from '../lib/format'
 import type { CircleEvent } from '../lib/types'
 import { SosDialog } from './SosDialog'
+import { ensurePush } from '../lib/push'
 
 function eventText(e: CircleEvent): { title: string; body?: string } {
   const who = firstName(e.name)
+  if (e.type === 'ping') return { title: `${who} pediu sua localização`, body: 'Sua posição atual está sendo enviada.' }
   if (e.type === 'sos') return { title: `🚨 ${who} pediu ajuda (SOS)`, body: 'Abra o mapa para ver onde ela/ele está.' }
   if (e.type === 'checkin_late')
     return { title: `⚠️ ${who} não chegou em ${e.placeName ?? 'destino'} no horário`, body: `Combinado até ${hourMinute(e.dueAt)}. Veja a última posição no mapa e tente ligar.` }
@@ -33,6 +35,7 @@ function useLiveAlerts() {
       seen.current.add(e.id)
       const at = tsToDate(e.ts)?.getTime() ?? Date.now()
       if (at < startedAt.current - 5000 || e.uid === profile?.uid) continue
+      if (e.type === 'ping' && e.targetUid !== profile?.uid) continue
       const { title, body } = eventText(e)
       const urgent = e.type === 'sos' || e.type === 'checkin_late'
       toast.show({ kind: urgent ? 'danger' : e.type === 'checkin_ok' ? 'success' : 'info', title, body }, urgent ? 15000 : 6000)
@@ -55,7 +58,12 @@ const tabs = [
 
 export function AppShell() {
   const [sosOpen, setSosOpen] = useState(false)
+  const { profile } = useAuth()
   useLiveAlerts()
+  // Aparelho que já aceitou notificações: mantém a assinatura de push atualizada.
+  useEffect(() => {
+    if (profile?.uid) void ensurePush(profile.uid)
+  }, [profile?.uid])
 
   const tabClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${

@@ -3,13 +3,14 @@ import { useState } from 'react'
 import { Check, Copy, Share2, X } from 'lucide-react'
 import { useCircle } from '../context/CircleContext'
 import { Button } from './ui'
+import { inviteUrl } from '../lib/invite'
 
 export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { circle } = useCircle()
   const [copied, setCopied] = useState(false)
   if (!open || !circle) return null
 
-  const text = `Entre no nosso círculo "${circle.name}" no Família Segura: ${window.location.origin} . Use o código ${circle.inviteCode}`
+  const text = `Entre no nosso círculo "${circle.name}" no Família Segura. Abra este link, crie sua conta e o código ${circle.inviteCode} já vem preenchido: ${inviteUrl(circle.inviteCode)}`
 
   async function share() {
     if (navigator.share) {
@@ -39,7 +40,7 @@ export function InviteDialog({ open, onClose }: { open: boolean; onClose: () => 
             <X className="h-5 w-5" />
           </button>
         </div>
-        <p className="mt-1 text-sm text-slate-600">A pessoa cria uma conta e digita este código em “Tenho um código”.</p>
+        <p className="mt-1 text-sm text-slate-600">Envie o link: a pessoa cria a conta e entra direto no círculo. Se ela já tiver conta, vai em Mais → “Entrar com código”.</p>
         <button onClick={copy} className="mt-5 flex w-full items-center justify-center gap-3 rounded-2xl bg-brand-50 py-5 ring-1 ring-brand-100 hover:bg-brand-100" aria-label="Copiar código">
           <span className="font-mono text-3xl font-bold tracking-[0.3em] text-brand-700">{circle.inviteCode}</span>
           {copied ? <Check className="h-5 w-5 text-emerald-600" /> : <Copy className="h-5 w-5 text-brand-500" />}
