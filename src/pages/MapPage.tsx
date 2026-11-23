@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Circle as LCircle, Marker, Popup } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import type { Map as LeafletMap } from 'leaflet'
-import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, LocateFixed, MapPinOff, Timer, UserPlus } from 'lucide-react'
+import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, ExternalLink, LocateFixed, MapPinOff, Timer, UserPlus } from 'lucide-react'
 import { BaseMap, FitBounds } from '../components/map/BaseMap'
 import { clusterIcon, memberIcon, placeIcon } from '../components/map/icons'
 import { Avatar } from '../components/Avatar'
@@ -14,6 +14,7 @@ import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { formatDistance, metersBetween } from '../lib/geo'
 import { firstName, hourMinute, isStale, timeAgo, tsToDate } from '../lib/format'
+import { openExternal } from '../lib/native'
 import type { MemberLocation, Place } from '../lib/types'
 
 function placeOf(m: MemberLocation, places: Place[]): Place | null {
@@ -200,8 +201,8 @@ export default function MapPage() {
               const ck = checkins.find((c) => c.uid === m.uid)
               const cd = ck ? countdown(ck, now) : null
               return (
-                <li key={m.uid}>
-                  <button onClick={() => focus(m)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50">
+                <li key={m.uid} className="flex items-center gap-1">
+                  <button onClick={() => focus(m)} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50">
                     <Avatar name={m.name} color={m.color} size={44} dimmed={stale} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -229,6 +230,16 @@ export default function MapPage() {
                     </span>
                     <Battery level={m.battery} charging={m.charging} />
                   </button>
+                  {!isMe && m.mapsLink && (
+                    <button
+                      onClick={() => openExternal(m.mapsLink!)}
+                      aria-label={`Ver ${firstName(m.name)} no Google Maps`}
+                      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[10px] font-semibold text-brand-700 hover:bg-brand-50"
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                      Google Maps
+                    </button>
+                  )}
                 </li>
               )
             })}

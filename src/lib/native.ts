@@ -99,3 +99,12 @@ export async function showNativeNotification(title: string, body?: string) {
     console.error(error)
   }
 }
+
+/**
+ * Abre um link fora do app. No app instalado, navegar para um endereço externo
+ * faz o Android entregar o link ao app certo (ex.: Google Maps).
+ */
+export function openExternal(url: string) {
+  if (isNativeApp()) window.location.href = url
+  else window.open(url, '_blank', 'noopener,noreferrer')
+}

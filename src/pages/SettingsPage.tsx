@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { isNativeApp } from '../lib/native'
-import { Bell, ChevronRight, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
+import { Bell, ChevronRight, ExternalLink, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { InviteDialog } from '../components/InviteDialog'
 import { Card, PageHeader } from '../components/ui'
@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { useToast } from '../context/ToastContext'
-import { leaveCircle, renameCircle, setSharing } from '../lib/api'
+import { leaveCircle, renameCircle, setSharing, isMapsLink, setMapsLink } from '../lib/api'
 import { dataErrorMessage, firstName } from '../lib/format'
 
 function Row({ icon, title, subtitle, to, onClick, right }: { icon: ReactNode; title: string; subtitle?: string; to?: string; onClick?: () => void; right?: ReactNode }) {
@@ -56,6 +56,27 @@ export default function SettingsPage() {
     const p = await Notification.requestPermission()
     setNotif(p)
     if (p === 'granted') toast.show({ kind: 'success', title: 'Notificações ativadas', body: 'Você recebe alertas enquanto o app estiver aberto.' })
+  }
+
+  async function editMapsLink() {
+    if (!circle || !profile) return
+    const typed = prompt(
+      'Cole o link de compartilhamento do Google Maps (Google Maps → sua foto → Compartilhar local → compartilhar por link, "Até você desativar"). Deixe vazio para remover.',
+      me?.mapsLink ?? '',
+    )
+    if (typed === null) return
+    // O Google costuma colar junto um texto ("Veja onde estou: https://..."): pega só o link.
+    const link = typed.match(/https:\/\/\S+/)?.[0] ?? ''
+    if (typed.trim() && !isMapsLink(link)) {
+      toast.show({ kind: 'danger', title: 'Link inválido', body: 'Use o link gerado pelo Google Maps (começa com https://maps.app.goo.gl/).' })
+      return
+    }
+    try {
+      await setMapsLink(circle.id, profile, link || null)
+      toast.show({ kind: 'success', title: link ? 'Link do Google Maps salvo' : 'Link removido', body: link ? 'Sua família já vê o botão Google Maps no seu cartão.' : undefined })
+    } catch (e) {
+      toast.show({ kind: 'danger', title: 'Não foi possível salvar o link', body: dataErrorMessage(e) })
+    }
   }
 
   async function rename() {
@@ -108,6 +129,7 @@ export default function SettingsPage() {
         <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Pausar interrompe novas atualizações. A última posição e o histórico continuam visíveis ao círculo. Links temporários existentes mantêm a última posição até expirarem ou serem desativados. O GPS só atualiza com o app aberto.</p>
 
         <Card className="!p-0 overflow-hidden divide-y divide-slate-100">
+          <Row icon={<ExternalLink className="h-5 w-5" />} title="Meu link do Google Maps" subtitle={me?.mapsLink ? 'Cadastrado: a família abre sua localização no Google Maps' : 'Cole aqui para a família abrir você no Google Maps'} onClick={editMapsLink} />
           <Row icon={<Link2 className="h-5 w-5" />} title="Link temporário" subtitle="Mostre onde você está por um tempo" to="/compartilhar" />
           <Row icon={<Bell className="h-5 w-5" />} title="Alertas" subtitle="Chegadas, saídas e SOS" to="/alertas" />
           {notif !== 'granted' && notif !== 'denied' && (

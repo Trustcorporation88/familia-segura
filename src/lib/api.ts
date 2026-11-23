@@ -153,6 +153,7 @@ type LocationRow = {
   charging: boolean | null
   sharing: boolean
   updated_at: string | null
+  maps_link?: string | null
 }
 
 export function watchLocations(circleId: string, cb: (list: MemberLocation[]) => void): Unsubscribe {
@@ -172,6 +173,7 @@ export function watchLocations(circleId: string, cb: (list: MemberLocation[]) =>
         charging: r.charging,
         sharing: r.sharing,
         updatedAt: r.updated_at,
+        mapsLink: r.maps_link ?? null,
       }))
     },
     cb,
@@ -193,6 +195,20 @@ export async function writeLocation(
         ...data,
         updated_at: new Date().toISOString(),
       },
+      { onConflict: 'circle_id,user_id' },
+    ),
+  )
+}
+
+/** Aceita só links do Google Maps (mesma regra do banco). */
+export function isMapsLink(link: string) {
+  return link.length <= 300 && /^https:\/\/(maps\.app\.goo\.gl\/|goo\.gl\/maps\/|(www\.)?google\.com(\.[a-z]{2})?\/maps|maps\.google\.com(\.[a-z]{2})?\/)/.test(link)
+}
+
+export async function setMapsLink(circleId: string, profile: UserProfile, link: string | null) {
+  check(
+    await supabase.from('locations').upsert(
+      { circle_id: circleId, user_id: profile.uid, name: profile.name, color: profile.color, maps_link: link },
       { onConflict: 'circle_id,user_id' },
     ),
   )
