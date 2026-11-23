@@ -60,9 +60,21 @@ src/pages/               telas
 supabase/migrations/     esquema, RLS e rotinas do banco
 ```
 
+## App Android (localização em segundo plano)
+
+O navegador só envia GPS com o site aberto na tela. Para atualizar com o celular bloqueado, use o app Android (pasta `android/`, gerada com [Capacitor](https://capacitorjs.com) + `@capacitor-community/background-geolocation`). Ele usa o mesmo código e o mesmo Supabase do site.
+
+- Gerar o APK: `npm run android:apk` (precisa de JDK 17 e Android SDK). O arquivo sai em `android/app/build/outputs/apk/debug/app-debug.apk`.
+- Instalar: mandar o APK para o celular e abrir (permitir "instalar apps desconhecidos").
+- Na primeira abertura: permitir localização e notificações. Fica uma notificação fixa "Compartilhando sua localização" enquanto o rastreamento roda (exigência do Android).
+- **Bateria**: em Ajustes do Android → Apps → Família Segura → Bateria, escolha **Sem restrições**. Xiaomi, Samsung e Motorola matam apps em segundo plano se isso não for feito.
+- Com o app instalado, alertas do círculo (SOS, atraso, chegada) viram notificação do sistema mesmo com a tela bloqueada.
+- Parado no lugar, o app reenvia a posição a cada 5 minutos para mostrar que o celular segue ativo.
+
 ## Limitações conhecidas (e próximos passos)
 
-- **Localização em segundo plano**: navegadores só enviam GPS com o app aberto na tela. Para rastrear com o celular bloqueado é preciso empacotar como app nativo (ex.: [Capacitor](https://capacitorjs.com) + plugin de background geolocation).
+- **iPhone**: o plugin já suporta iOS (`npx cap add ios`), mas compilar exige um Mac com Xcode. Com Apple ID gratuito o app instalado expira em 7 dias; a conta paga (US$ 99/ano) só é necessária para não expirar ou para publicar.
+- **Site no navegador**: continua só atualizando com a página aberta na tela.
 - **Push com o app fechado**: feito com Web Push (VAPID). Ao inserir em `events`, um gatilho (pg_net) chama a Edge Function `send-push`, que envia para os aparelhos em `push_subscriptions`. No iPhone só funciona com o app adicionado à Tela de Início. O push **não liga o GPS sozinho**: em "Pedir localização" a pessoa precisa tocar na notificação para o app abrir e a posição atualizar.
 
 ## Referências usadas

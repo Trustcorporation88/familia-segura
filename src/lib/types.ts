@@ -29,6 +29,8 @@ export interface MemberLocation {
   charging: boolean | null
   sharing: boolean
   updatedAt: Ts | null
+  /** Link de compartilhamento do Google Maps, se a pessoa cadastrou. */
+  mapsLink: string | null
 }
 
 export interface Place {

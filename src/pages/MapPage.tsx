@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Circle as LCircle, Marker, Popup } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import type { Map as LeafletMap } from 'leaflet'
-import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, LocateFixed, MapPinOff, Timer, UserPlus } from 'lucide-react'
+import { BatteryCharging, BatteryLow, BatteryMedium, Bell, ChevronDown, ChevronUp, ExternalLink, LocateFixed, MapPinOff, Timer, UserPlus } from 'lucide-react'
 import { BaseMap, FitBounds } from '../components/map/BaseMap'
 import { clusterIcon, memberIcon, placeIcon } from '../components/map/icons'
 import { Avatar } from '../components/Avatar'
@@ -17,6 +17,7 @@ import { requestLocation } from '../lib/api'
 import { useToast } from '../context/ToastContext'
 import { BellRing } from 'lucide-react'
 import { firstName, hourMinute, isStale, timeAgo, tsToDate } from '../lib/format'
+import { openExternal } from '../lib/native'
 import type { MemberLocation, Place } from '../lib/types'
 
 function placeOf(m: MemberLocation, places: Place[]): Place | null {
@@ -217,7 +218,7 @@ export default function MapPage() {
               const cd = ck ? countdown(ck, now) : null
               return (
                 <li key={m.uid} className="relative">
-                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : 'pr-24'}`}>
+                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : m.mapsLink ? 'pr-36' : 'pr-24'}`}>
                     <Avatar name={m.name} color={m.color} size={44} dimmed={stale} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -245,6 +246,16 @@ export default function MapPage() {
                     </span>
                     <Battery level={m.battery} charging={m.charging} />
                   </button>
+                  {!isMe && m.mapsLink && (
+                    <button
+                      onClick={() => openExternal(m.mapsLink!)}
+                      aria-label={`Ver ${firstName(m.name)} no Google Maps`}
+                      title="Ver no Google Maps"
+                      className="absolute right-24 top-1/2 -translate-y-1/2 rounded-xl p-2 text-brand-600 hover:bg-brand-50 hover:text-brand-700"
+                    >
+                      <ExternalLink className="h-5 w-5" />
+                    </button>
+                  )}
                   {!isMe && (
                     <button
                       onClick={() => ping(m)}

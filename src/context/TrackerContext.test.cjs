@@ -33,7 +33,10 @@ test('GPS synchronization lifecycle and acknowledged writes', async (t) => {
       localStorage: { getItem: () => null, setItem() {} },
       document: { ...events, visibilityState: 'visible' }, window: events,
       setTimeout: (cb, delay) => { timers.set(++timerId, { cb, delay }); return timerId }, clearTimeout: id => timers.delete(id),
-      require: name => name === 'react' ? React : name === '../lib/api' ? api : name === '../lib/format' ? { ms: Date.parse } : name === '../lib/geo' ? {
+      setInterval: () => 0, clearInterval() {},
+      require: name => name === 'react' ? React : name === '../lib/api' ? api : name === '../lib/format' ? { ms: Date.parse } : name === '../lib/native' ? {
+        isNativeApp: () => false, startBackgroundWatch: () => { throw new Error('native watch in web test') },
+      } : name === '../lib/geo' ? {
         metersBetween: (a, b) => Math.abs(a.lat - b.lat) * 111000,
         isInsidePlace: () => false, evaluateGeofences: () => ({ next: {}, transitions: [] }),
       } : require(name),
