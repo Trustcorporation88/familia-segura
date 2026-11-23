@@ -100,6 +100,9 @@ export async function showNativeNotification(title: string, body?: string) {
   }
 }
 
+/** No Android, abrir este endereço leva ao app do Google Maps. */
+export const GOOGLE_MAPS_URL = 'https://www.google.com/maps'
+
 /**
  * Abre um link fora do app. No app instalado, navegar para um endereço externo
  * faz o Android entregar o link ao app certo (ex.: Google Maps).

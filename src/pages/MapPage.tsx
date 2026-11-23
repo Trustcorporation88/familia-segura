@@ -17,7 +17,7 @@ import { requestLocation } from '../lib/api'
 import { useToast } from '../context/ToastContext'
 import { BellRing } from 'lucide-react'
 import { firstName, hourMinute, isStale, timeAgo, tsToDate } from '../lib/format'
-import { openExternal } from '../lib/native'
+import { GOOGLE_MAPS_URL, openExternal } from '../lib/native'
 import type { MemberLocation, Place } from '../lib/types'
 
 function placeOf(m: MemberLocation, places: Place[]): Place | null {
@@ -218,7 +218,7 @@ export default function MapPage() {
               const cd = ck ? countdown(ck, now) : null
               return (
                 <li key={m.uid} className="relative">
-                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : m.mapsLink ? 'pr-36' : 'pr-24'}`}>
+                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : 'pr-36'}`}>
                     <Avatar name={m.name} color={m.color} size={44} dimmed={stale} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -246,11 +246,14 @@ export default function MapPage() {
                     </span>
                     <Battery level={m.battery} charging={m.charging} />
                   </button>
-                  {!isMe && m.mapsLink && (
+                  {!isMe && (
+                    // Quem compartilha a localização com você pelo Google Maps aparece lá
+                    // com a foto no mapa. O Google só permite link por até 24 h, então o
+                    // botão abre o app do Google Maps (ou o link salvo, se houver).
                     <button
-                      onClick={() => openExternal(m.mapsLink!)}
-                      aria-label={`Ver ${firstName(m.name)} no Google Maps`}
-                      title="Ver no Google Maps"
+                      onClick={() => openExternal(m.mapsLink ?? GOOGLE_MAPS_URL)}
+                      aria-label={`Abrir Google Maps para ver ${firstName(m.name)}`}
+                      title="Abrir Google Maps"
                       className="absolute right-24 top-1/2 -translate-y-1/2 rounded-xl p-2 text-brand-600 hover:bg-brand-50 hover:text-brand-700"
                     >
                       <ExternalLink className="h-5 w-5" />
