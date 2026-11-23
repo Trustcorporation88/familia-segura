@@ -20,6 +20,9 @@ import { firstName, hourMinute, isStale, timeAgo, tsToDate } from '../lib/format
 import { GOOGLE_MAPS_URL, openExternal } from '../lib/native'
 import type { MemberLocation, Place } from '../lib/types'
 
+/** Sem posição nova no Família Segura há este tempo: oferece abrir o Google Maps. */
+const MAPS_FALLBACK_MIN = 12
+
 function placeOf(m: MemberLocation, places: Place[]): Place | null {
   if (m.lat == null || m.lng == null) return null
   return places.find((p) => metersBetween({ lat: m.lat!, lng: m.lng! }, p) <= p.radius) ?? null
@@ -214,11 +217,15 @@ export default function MapPage() {
               const dist =
                 !isMe && position && m.lat != null && m.lng != null ? formatDistance(metersBetween(position, { lat: m.lat, lng: m.lng })) : null
               const stale = isStale(m.updatedAt)
+              // Botão do Google Maps só para quem não está atualizando pelo Família Segura
+              // (ex.: iPhone pelo site). O app Android reenvia a cada 5 min, então
+              // quem tem o app não mostra o botão enquanto estiver em dia.
+              const showMaps = !isMe && (m.sharing === false || isStale(m.updatedAt, MAPS_FALLBACK_MIN))
               const ck = checkins.find((c) => c.uid === m.uid)
               const cd = ck ? countdown(ck, now) : null
               return (
                 <li key={m.uid} className="relative">
-                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : 'pr-36'}`}>
+                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : showMaps ? 'pr-36' : 'pr-24'}`}>
                     <Avatar name={m.name} color={m.color} size={44} dimmed={stale} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -246,7 +253,7 @@ export default function MapPage() {
                     </span>
                     <Battery level={m.battery} charging={m.charging} />
                   </button>
-                  {!isMe && (
+                  {showMaps && (
                     // Quem compartilha a localização com você pelo Google Maps aparece lá
                     // com a foto no mapa. O Google só permite link por até 24 h, então o
                     // botão abre o app do Google Maps (ou o link salvo, se houver).
