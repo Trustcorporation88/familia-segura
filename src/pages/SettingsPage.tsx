@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { isNativeApp } from '../lib/native'
 import { Bell, ChevronRight, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { InviteDialog } from '../components/InviteDialog'
@@ -33,7 +34,8 @@ export default function SettingsPage() {
   const { status, syncStatus } = useTracker()
   const toast = useToast()
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [notif, setNotif] = useState(typeof Notification !== 'undefined' ? Notification.permission : 'denied')
+  // No app instalado as notificações são pedidas ao abrir (ver AppShell).
+  const [notif, setNotif] = useState(isNativeApp() ? 'granted' : typeof Notification !== 'undefined' ? Notification.permission : 'denied')
 
   if (!profile || !circle) return null
   const sharing = me?.sharing !== false

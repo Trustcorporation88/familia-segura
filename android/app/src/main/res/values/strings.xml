@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Família Segura</string>
+    <string name="title_activity_main">Família Segura</string>
+    <string name="package_name">online.gpsprivado.familiasegura</string>
+    <string name="custom_url_scheme">online.gpsprivado.familiasegura</string>
+</resources>

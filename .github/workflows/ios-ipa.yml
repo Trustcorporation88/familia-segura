@@ -1,0 +1,53 @@
+# Gera o app de iPhone (.ipa SEM assinatura) numa máquina Mac do GitHub.
+# A assinatura é feita no próprio celular pelo AltStore/SideStore com Apple ID gratuito.
+# Baixe o arquivo em: Actions → "App iPhone (IPA)" → execução mais recente → Artifacts.
+name: App iPhone (IPA)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, feat/app-android-segundo-plano]
+    paths: ['src/**', 'ios/**', 'public/**', 'package.json', 'package-lock.json', 'capacitor.config.ts', '.github/workflows/ios-ipa.yml']
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Build do site e sincronização com o iOS
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: Compilar o app (sem assinatura)
+        working-directory: ios/App
+        run: |
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 40
+          test -d build/Build/Products/Release-iphoneos/App.app
+
+      - name: Empacotar .ipa
+        working-directory: ios/App
+        run: |
+          mkdir -p out/Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app out/Payload/
+          cd out && zip -qry FamiliaSegura.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FamiliaSegura-iPhone
+          path: ios/App/out/FamiliaSegura.ipa
+          retention-days: 30

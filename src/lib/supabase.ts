@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { isNativeApp, nativeFetch } from './native'
 
 // URL e chave "publishable" são públicas por natureza (vão para o navegador).
 // A segurança vem das políticas RLS do banco (ver supabase/migrations).
@@ -9,6 +10,8 @@ const key = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_KReVsDNFrSGmN8t
 export const backendConfigured = Boolean(url && key)
 
 export const supabase = createClient(url, key, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  // No app instalado, as chamadas HTTP saem pela pilha nativa (continuam em segundo plano).
+  global: isNativeApp() ? { fetch: nativeFetch } : undefined,
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: !isNativeApp() },
   realtime: { params: { eventsPerSecond: 5 } },
 })

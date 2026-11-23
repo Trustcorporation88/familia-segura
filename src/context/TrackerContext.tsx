@@ -9,6 +9,7 @@ import {
 } from '../lib/api'
 import { evaluateGeofences, isInsidePlace, metersBetween, type PlaceStates } from '../lib/geo'
 import { ms } from '../lib/format'
+import { isNativeApp, startBackgroundWatch } from '../lib/native'
 import type { Checkin, LatLng, Place, Share, UserProfile } from '../lib/types'
 
 export type TrackerStatus = 'starting' | 'active' | 'paused' | 'denied' | 'unsupported' | 'error'
@@ -30,6 +31,7 @@ const LOCATION_MIN_METERS = 20
 const LOCATION_MAX_MS = 60_000
 const HISTORY_MIN_METERS = 75
 const HISTORY_MAX_MS = 10 * 60_000
+const HEARTBEAT_MS = 5 * 60_000
 
 type WriteStamp = { pos: LatLng; at: number }
 
@@ -243,28 +245,41 @@ export function TrackerProvider({
       if (!running) { clearTimeout(timer); void flush() }
     }
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    const onFix = (fix: LatLng & { accuracy: number }) => {
+      if (!alive) return
+      latest = fix
+      revision += 1
+      setPosition(latest)
+      setStatus('active')
+      if (!running && failures === 0) void flush()
+    }
     setStatus('starting')
-    const id = navigator.geolocation.watchPosition(
-      (geo) => {
-        if (!alive) return
-        latest = { lat: geo.coords.latitude, lng: geo.coords.longitude, accuracy: Math.round(geo.coords.accuracy) }
-        revision += 1
-        setPosition(latest)
-        setStatus('active')
-        if (!running && failures === 0) void flush()
-      },
-      (err) => {
-        if (!alive) return
-        setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error')
-      },
-      { enableHighAccuracy: true, maximumAge: 15_000, timeout: 30_000 },
-    )
+    let stopWatch: () => void
+    let heartbeat: ReturnType<typeof setInterval> | undefined
+    if (isNativeApp()) {
+      // App instalado: GPS continua com a tela bloqueada. Parado no lugar o GPS
+      // não gera leituras novas, então reenviamos a última posição periodicamente
+      // para a família ver que o celular segue ativo.
+      stopWatch = startBackgroundWatch(onFix, (denied) => { if (alive) setStatus(denied ? 'denied' : 'error') })
+      heartbeat = setInterval(refresh, HEARTBEAT_MS)
+    } else {
+      const id = navigator.geolocation.watchPosition(
+        (geo) => onFix({ lat: geo.coords.latitude, lng: geo.coords.longitude, accuracy: Math.round(geo.coords.accuracy) }),
+        (err) => {
+          if (!alive) return
+          setStatus(err.code === err.PERMISSION_DENIED ? 'denied' : 'error')
+        },
+        { enableHighAccuracy: true, maximumAge: 15_000, timeout: 30_000 },
+      )
+      stopWatch = () => navigator.geolocation.clearWatch(id)
+    }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', refresh)
     return () => {
       alive = false
       clearTimeout(timer)
-      navigator.geolocation.clearWatch(id)
+      clearInterval(heartbeat)
+      stopWatch()
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', refresh)
     }

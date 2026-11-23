@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import { firstName, hourMinute, tsToDate } from '../lib/format'
 import type { CircleEvent } from '../lib/types'
 import { SosDialog } from './SosDialog'
+import { isNativeApp, requestNativeNotifications, showNativeNotification } from '../lib/native'
 
 function eventText(e: CircleEvent): { title: string; body?: string } {
   const who = firstName(e.name)
@@ -37,7 +38,11 @@ function useLiveAlerts() {
       const urgent = e.type === 'sos' || e.type === 'checkin_late'
       toast.show({ kind: urgent ? 'danger' : e.type === 'checkin_ok' ? 'success' : 'info', title, body }, urgent ? 15000 : 6000)
       if (urgent && 'vibrate' in navigator) navigator.vibrate?.([300, 150, 300, 150, 600])
-      if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+      if (isNativeApp()) {
+        // App instalado: o processo segue vivo em segundo plano (serviço de localização),
+        // então os alertas viram notificação do sistema mesmo com a tela bloqueada.
+        if (document.visibilityState !== 'visible') void showNativeNotification(title, body)
+      } else if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
         navigator.serviceWorker?.ready
           .then((reg) => reg.showNotification(title, { body, icon: '/icon-192.png', tag: e.id }))
           .catch(() => new Notification(title, { body, icon: '/icon-192.png' }))
@@ -56,6 +61,7 @@ const tabs = [
 export function AppShell() {
   const [sosOpen, setSosOpen] = useState(false)
   useLiveAlerts()
+  useEffect(() => { if (isNativeApp()) void requestNativeNotifications() }, [])
 
   const tabClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-1 flex-col items-center justify-center gap-0.5 rounded-xl py-2 text-[11px] font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
