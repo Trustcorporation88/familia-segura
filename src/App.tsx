@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { rememberInviteCode } from './lib/invite'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { CircleProvider, useCircle } from './context/CircleContext'
 import { ToastProvider } from './context/ToastContext'
@@ -34,6 +35,13 @@ function ConfigMissing() {
       </div>
     </div>
   )
+}
+
+/** Link de convite: guarda o código e segue para o cadastro (ou para o círculo, se já estiver logado). */
+function InviteLanding() {
+  const { code = '' } = useParams()
+  rememberInviteCode(code)
+  return <Navigate to="/cadastro" replace />
 }
 
 function SignedInApp({ profile }: { profile: UserProfile }) {
@@ -97,6 +105,7 @@ export default function App() {
           <Routes>
             {/* Página pública do link temporário: funciona sem login */}
             <Route path="/s/:token" element={<PublicShare />} />
+            <Route path="/entrar/:code" element={<InviteLanding />} />
             <Route
               path="*"
               element={

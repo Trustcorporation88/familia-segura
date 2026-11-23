@@ -32,6 +32,8 @@ const LOCATION_MAX_MS = 60_000
 const HISTORY_MIN_METERS = 75
 const HISTORY_MAX_MS = 10 * 60_000
 const HEARTBEAT_MS = 5 * 60_000
+/** Evento de janela que força reenviar a posição atual. */
+export const REFRESH_EVENT = 'fs:refresh-location'
 
 type WriteStamp = { pos: LatLng; at: number }
 
@@ -275,6 +277,8 @@ export function TrackerProvider({
     }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', refresh)
+    // "Pedir localização" de alguém do círculo (ver AppShell): envia a posição já.
+    window.addEventListener(REFRESH_EVENT, refresh)
     return () => {
       alive = false
       clearTimeout(timer)
@@ -282,6 +286,7 @@ export function TrackerProvider({
       stopWatch()
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', refresh)
+      window.removeEventListener(REFRESH_EVENT, refresh)
     }
   }, [sharing, circleId, profile.uid, attempt])
 

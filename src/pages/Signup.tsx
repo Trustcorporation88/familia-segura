@@ -5,6 +5,7 @@ import { AuthLayout } from '../components/AuthLayout'
 import { Button, ErrorText, Field } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { authErrorMessage } from '../lib/format'
+import { pendingInviteCode } from '../lib/invite'
 
 export function formatPhone(v: string) {
   const d = v.replace(/\D/g, '').slice(0, 11)
@@ -64,7 +65,7 @@ export default function Signup() {
   return (
     <AuthLayout
       title="Criar sua conta"
-      subtitle="Leva menos de um minuto."
+      subtitle={pendingInviteCode() ? `Convite para o círculo com código ${pendingInviteCode()}. Crie sua conta para entrar.` : "Leva menos de um minuto."}
       footer={
         <>
           Já tem conta?{' '}

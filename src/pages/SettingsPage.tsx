@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { isNativeApp } from '../lib/native'
-import { Bell, ChevronRight, ExternalLink, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
+import { isNativeApp, requestNativeNotifications } from '../lib/native'
+import { Bell, ChevronRight, ExternalLink, KeyRound, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { InviteDialog } from '../components/InviteDialog'
 import { Card, PageHeader } from '../components/ui'
@@ -9,8 +9,9 @@ import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { useToast } from '../context/ToastContext'
-import { leaveCircle, renameCircle, setSharing, isMapsLink, setMapsLink } from '../lib/api'
+import { isMapsLink, joinCircle, leaveCircle, renameCircle, setMapsLink, setSharing } from '../lib/api'
 import { dataErrorMessage, firstName } from '../lib/format'
+import { disablePush, enablePush, pushState, type PushState } from '../lib/push'
 
 function Row({ icon, title, subtitle, to, onClick, right }: { icon: ReactNode; title: string; subtitle?: string; to?: string; onClick?: () => void; right?: ReactNode }) {
   const inner = (
@@ -34,8 +35,8 @@ export default function SettingsPage() {
   const { status, syncStatus } = useTracker()
   const toast = useToast()
   const [inviteOpen, setInviteOpen] = useState(false)
-  // No app instalado as notificações são pedidas ao abrir (ver AppShell).
-  const [notif, setNotif] = useState(isNativeApp() ? 'granted' : typeof Notification !== 'undefined' ? Notification.permission : 'denied')
+  // No app instalado as notificações são do sistema (pedidas ao abrir, ver AppShell).
+  const [notif, setNotif] = useState<PushState>(() => (isNativeApp() ? 'granted' : pushState()))
 
   if (!profile || !circle) return null
   const sharing = me?.sharing !== false
@@ -52,10 +53,20 @@ export default function SettingsPage() {
   }
 
   async function askNotifications() {
-    if (typeof Notification === 'undefined') return
-    const p = await Notification.requestPermission()
-    setNotif(p)
-    if (p === 'granted') toast.show({ kind: 'success', title: 'Notificações ativadas', body: 'Você recebe alertas enquanto o app estiver aberto.' })
+    if (!profile) return
+    if (isNativeApp()) {
+      const ok = await requestNativeNotifications()
+      toast.show(ok ? { kind: 'success', title: 'Notificações ativas neste aparelho' } : { kind: 'danger', title: 'Notificações bloqueadas', body: 'Libere nas configurações do Android para o Família Segura.' })
+      return
+    }
+    try {
+      const p = await enablePush(profile.uid)
+      setNotif(p)
+      if (p === 'granted') toast.show({ kind: 'success', title: 'Notificações ativadas', body: 'Este aparelho recebe SOS, atrasos e pedidos de localização mesmo com o app fechado.' })
+      else if (p === 'denied') toast.show({ kind: 'danger', title: 'Notificações bloqueadas', body: 'Libere nas configurações do navegador para este site.' })
+    } catch (e) {
+      toast.show({ kind: 'danger', title: 'Não foi possível ativar', body: dataErrorMessage(e) })
+    }
   }
 
   async function editMapsLink() {
@@ -83,6 +94,21 @@ export default function SettingsPage() {
     if (!circle) return
     const name = prompt('Novo nome do círculo', circle.name)
     if (name && name.trim()) await renameCircle(circle.id, name)
+  }
+
+  async function joinWithCode() {
+    if (!circle || !profile) return
+    const raw = prompt('Código de convite (6 letras) que você recebeu:')
+    if (!raw) return
+    const alone = members.length <= 1
+    if (!alone && !confirm(`Você vai sair de "${circle.name}" e entrar no outro círculo. Continuar?`)) return
+    try {
+      await joinCircle(profile, raw)
+      await leaveCircle(profile, circle)
+      toast.show({ kind: 'success', title: 'Você entrou no novo círculo' })
+    } catch (e) {
+      toast.show({ kind: 'danger', title: 'Não deu certo', body: dataErrorMessage(e) })
+    }
   }
 
   async function leave() {
@@ -132,8 +158,20 @@ export default function SettingsPage() {
           <Row icon={<ExternalLink className="h-5 w-5" />} title="Meu link do Google Maps" subtitle={me?.mapsLink ? 'Cadastrado: a família abre sua localização no Google Maps' : 'Cole aqui para a família abrir você no Google Maps'} onClick={editMapsLink} />
           <Row icon={<Link2 className="h-5 w-5" />} title="Link temporário" subtitle="Mostre onde você está por um tempo" to="/compartilhar" />
           <Row icon={<Bell className="h-5 w-5" />} title="Alertas" subtitle="Chegadas, saídas e SOS" to="/alertas" />
-          {notif !== 'granted' && notif !== 'denied' && (
-            <Row icon={<Bell className="h-5 w-5" />} title="Ativar notificações" subtitle="Receba avisos do círculo" onClick={askNotifications} />
+          {notif === 'default' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Ativar notificações" subtitle="SOS, atrasos e pedidos de localização, mesmo com o app fechado" onClick={askNotifications} />
+          )}
+          {notif === 'granted' && (
+            <Row icon={<Bell className="h-5 w-5 text-emerald-600" />} title="Notificações ativas neste aparelho" subtitle="Toque para reconferir" onClick={askNotifications} right={<span />} />
+          )}
+          {notif === 'denied' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Notificações bloqueadas" subtitle="Libere nas configurações do navegador para este site" onClick={askNotifications} right={<span />} />
+          )}
+          {notif === 'ios_not_installed' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Notificações no iPhone" subtitle="Toque em Compartilhar e em “Adicionar à Tela de Início”. Depois abra por lá e ative aqui." onClick={() => undefined} right={<span />} />
+          )}
+          {notif === 'unsupported' && (
+            <Row icon={<Bell className="h-5 w-5" />} title="Notificações não disponíveis" subtitle="Este navegador não oferece push" onClick={() => undefined} right={<span />} />
           )}
         </Card>
 
@@ -142,11 +180,12 @@ export default function SettingsPage() {
           <Card className="!p-0 overflow-hidden divide-y divide-slate-100">
             <Row icon={<Users className="h-5 w-5" />} title={circle.name} subtitle={`${members.length} ${members.length === 1 ? 'pessoa' : 'pessoas'}: ${members.map((m) => firstName(m.name)).join(', ')}`} onClick={rename} right={<Pencil className="h-4 w-4 text-slate-400" />} />
             <Row icon={<UserPlus className="h-5 w-5" />} title="Convidar" subtitle={`Código ${circle.inviteCode}`} onClick={() => setInviteOpen(true)} />
+            <Row icon={<KeyRound className="h-5 w-5" />} title="Entrar com código" subtitle={members.length <= 1 ? "Recebeu um convite? Entre no círculo da família" : "Trocar para outro círculo"} onClick={joinWithCode} />
             <Row icon={<LogOut className="h-5 w-5" />} title="Sair do círculo" onClick={leave} right={<span />} />
           </Card>
         </section>
 
-        <button onClick={logout} className="w-full rounded-2xl py-3 text-center font-semibold text-red-600 hover:bg-red-50">
+        <button onClick={() => disablePush().finally(logout)} className="w-full rounded-2xl py-3 text-center font-semibold text-red-600 hover:bg-red-50">
           Sair da conta
         </button>
         <p className="pb-4 text-center text-xs text-slate-400">Família Segura v2.0 · Mapas © OpenStreetMap</p>

@@ -75,7 +75,7 @@ O navegador só envia GPS com o site aberto na tela. Para atualizar com o celula
 
 - **iPhone**: o plugin já suporta iOS (`npx cap add ios`), mas compilar exige um Mac com Xcode. Com Apple ID gratuito o app instalado expira em 7 dias; a conta paga (US$ 99/ano) só é necessária para não expirar ou para publicar.
 - **Site no navegador**: continua só atualizando com a página aberta na tela.
-- **Push com o app fechado**: hoje os alertas aparecem com o app aberto. Para push real: Web Push (VAPID) + uma Edge Function do Supabase disparada por um Database Webhook em `events`.
+- **Push com o app fechado**: feito com Web Push (VAPID). Ao inserir em `events`, um gatilho (pg_net) chama a Edge Function `send-push`, que envia para os aparelhos em `push_subscriptions`. No iPhone só funciona com o app adicionado à Tela de Início. O push **não liga o GPS sozinho**: em "Pedir localização" a pessoa precisa tocar na notificação para o app abrir e a posição atualizar.
 
 ## Referências usadas
 

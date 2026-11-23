@@ -13,6 +13,9 @@ import { useAuth } from '../context/AuthContext'
 import { useCircle } from '../context/CircleContext'
 import { useTracker } from '../context/TrackerContext'
 import { formatDistance, metersBetween } from '../lib/geo'
+import { requestLocation } from '../lib/api'
+import { useToast } from '../context/ToastContext'
+import { BellRing } from 'lucide-react'
 import { firstName, hourMinute, isStale, timeAgo, tsToDate } from '../lib/format'
 import { openExternal } from '../lib/native'
 import type { MemberLocation, Place } from '../lib/types'
@@ -52,6 +55,19 @@ export default function MapPage() {
   const [map, setMap] = useState<LeafletMap | null>(null)
   const [sheetOpen, setSheetOpen] = useState(true)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const toast = useToast()
+  const [pinged, setPinged] = useState<Record<string, number>>({})
+
+  async function ping(m: MemberLocation) {
+    if (!circle || !profile) return
+    try {
+      await requestLocation(circle.id, profile, m.uid)
+      setPinged((p) => ({ ...p, [m.uid]: Date.now() }))
+      toast.show({ kind: 'info', title: `Pedido enviado para ${firstName(m.name)}`, body: 'Se a pessoa tocar na notificação, a posição dela atualiza aqui em segundos.' })
+    } catch {
+      toast.show({ kind: 'danger', title: 'Não foi possível enviar o pedido' })
+    }
+  }
 
   const located = members.filter((m) => m.lat != null && m.lng != null)
   const fitKey = located.length ? `${located.length}` : 'none'
@@ -62,7 +78,7 @@ export default function MapPage() {
   )
 
   const lastSeen = Number(localStorage.getItem('fs:alertsSeen') || 0)
-  const unread = events.filter((e) => e.uid !== profile?.uid && (tsToDate(e.ts)?.getTime() ?? 0) > lastSeen).length
+  const unread = events.filter((e) => e.uid !== profile?.uid && (e.type !== 'ping' || e.targetUid === profile?.uid) && (tsToDate(e.ts)?.getTime() ?? 0) > lastSeen).length
   const recentSos = events.find((e) => e.type === 'sos' && Date.now() - (tsToDate(e.ts)?.getTime() ?? 0) < 30 * 60_000)
 
   function focus(m: MemberLocation) {
@@ -201,8 +217,8 @@ export default function MapPage() {
               const ck = checkins.find((c) => c.uid === m.uid)
               const cd = ck ? countdown(ck, now) : null
               return (
-                <li key={m.uid} className="flex items-center gap-1">
-                  <button onClick={() => focus(m)} className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50">
+                <li key={m.uid} className="relative">
+                  <button onClick={() => focus(m)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left hover:bg-slate-50 ${isMe ? '' : m.mapsLink ? 'pr-36' : 'pr-24'}`}>
                     <Avatar name={m.name} color={m.color} size={44} dimmed={stale} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -234,10 +250,21 @@ export default function MapPage() {
                     <button
                       onClick={() => openExternal(m.mapsLink!)}
                       aria-label={`Ver ${firstName(m.name)} no Google Maps`}
-                      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[10px] font-semibold text-brand-700 hover:bg-brand-50"
+                      title="Ver no Google Maps"
+                      className="absolute right-24 top-1/2 -translate-y-1/2 rounded-xl p-2 text-brand-600 hover:bg-brand-50 hover:text-brand-700"
                     >
                       <ExternalLink className="h-5 w-5" />
-                      Google Maps
+                    </button>
+                  )}
+                  {!isMe && (
+                    <button
+                      onClick={() => ping(m)}
+                      disabled={now - (pinged[m.uid] ?? 0) < 60_000}
+                      aria-label={`Pedir localização de ${firstName(m.name)}`}
+                      title="Pedir localização"
+                      className="absolute right-14 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-400 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-30"
+                    >
+                      <BellRing className="h-5 w-5" />
                     </button>
                   )}
                 </li>
