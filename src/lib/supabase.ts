@@ -7,6 +7,10 @@ import { isNativeApp, nativeFetch } from './native'
 const url = import.meta.env.VITE_SUPABASE_URL || 'https://otaecjtrkyfzydimnydj.supabase.co'
 const key = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_KReVsDNFrSGmN8tZuPRj_w_n0fHkg4n'
 
+/** Endereço e chave pública do projeto (usados também pelo Atalho do iPhone). */
+export const SUPABASE_URL = url
+export const SUPABASE_KEY = key
+
 export const backendConfigured = Boolean(url && key)
 
 export const supabase = createClient(url, key, {

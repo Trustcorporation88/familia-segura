@@ -470,3 +470,20 @@ export function watchShare(token: string, cb: (s: Share | null) => void): Unsubs
 export function shareUrl(token: string) {
   return `${window.location.origin}/s/${token}`
 }
+
+// ---------- Atalho do iPhone ----------
+
+/** Gera (ou troca) a chave secreta que o app Atalhos usa para enviar a localização. */
+export async function createLocationToken(): Promise<string> {
+  return check(await supabase.rpc('create_location_token')) as string
+}
+
+export async function locationTokenStatus(): Promise<{ createdAt: string; lastUsedAt: string | null } | null> {
+  const rows = check(await supabase.rpc('location_token_status')) as { created_at: string; last_used_at: string | null }[] | null
+  const r = rows?.[0]
+  return r ? { createdAt: r.created_at, lastUsedAt: r.last_used_at } : null
+}
+
+export async function revokeLocationToken() {
+  check(await supabase.rpc('revoke_location_token'))
+}
