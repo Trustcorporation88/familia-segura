@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { isNativeApp, requestNativeNotifications } from '../lib/native'
-import { Bell, ChevronRight, KeyRound, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
+import { Bell, ChevronRight, Smartphone, KeyRound, Link2, LogOut, MapPin, Pencil, UserPlus, Users } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { InviteDialog } from '../components/InviteDialog'
 import { Card, PageHeader } from '../components/ui'
@@ -134,6 +134,7 @@ export default function SettingsPage() {
         <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Pausar interrompe novas atualizações. A última posição e o histórico continuam visíveis ao círculo. Links temporários existentes mantêm a última posição até expirarem ou serem desativados. O GPS só atualiza com o app aberto.</p>
 
         <Card className="!p-0 overflow-hidden divide-y divide-slate-100">
+          <Row icon={<Smartphone className="h-5 w-5" />} title="Atalho do iPhone" subtitle="Envia sua localização sem abrir o site" to="/atalho" />
           <Row icon={<Link2 className="h-5 w-5" />} title="Link temporário" subtitle="Mostre onde você está por um tempo" to="/compartilhar" />
           <Row icon={<Bell className="h-5 w-5" />} title="Alertas" subtitle="Chegadas, saídas e SOS" to="/alertas" />
           {notif === 'default' && (

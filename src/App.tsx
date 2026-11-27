@@ -21,6 +21,7 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const AlertsPage = lazy(() => import('./pages/AlertsPage'))
 const SharePage = lazy(() => import('./pages/SharePage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const AtalhoPage = lazy(() => import('./pages/AtalhoPage'))
 const PublicShare = lazy(() => import('./pages/PublicShare'))
 
 function ConfigMissing() {
@@ -68,6 +69,7 @@ function CircleGate({ profile }: { profile: UserProfile }) {
             <Route path="alertas" element={<AlertsPage />} />
             <Route path="compartilhar" element={<SharePage />} />
             <Route path="ajustes" element={<SettingsPage />} />
+            <Route path="atalho" element={<AtalhoPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
